@@ -180,20 +180,6 @@ values = ["a", "b", "c"]`,
 values = [1, 2, 3]`,
 			want: []string{"Values", "[]int64", "[]int64{1, 2, 3}"},
 		},
-		{
-			name: "duration type",
-			toml: `[config]
-timeout = "30s"`,
-			want: []string{"Timeout", "time.Duration", "30 * time.Second", "import \"time\""},
-		},
-		{
-			name: "duration types with various formats",
-			toml: `[config]
-short = "500ms"
-medium = "5m"
-long = "2h"`,
-			want: []string{"Short", "Medium", "Long", "time.Duration", "500 * time.Millisecond", "5 * time.Minute", "2 * time.Hour"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -205,6 +191,104 @@ long = "2h"`,
 			outputStr := string(output)
 			for _, want := range tt.want {
 				require.Contains(t, outputStr, want, "output missing expected string")
+			}
+		})
+	}
+}
+
+func TestGenerator_DurationTypes(t *testing.T) {
+	tests := []struct {
+		name string
+		toml string
+		want []string
+	}{
+		{
+			name: "simple duration - seconds",
+			toml: `[config]
+timeout = "30s"`,
+			want: []string{"Timeout", "time.Duration", "30 * time.Second", "import \"time\""},
+		},
+		{
+			name: "simple duration - milliseconds",
+			toml: `[config]
+timeout = "500ms"`,
+			want: []string{"Timeout", "time.Duration", "500 * time.Millisecond", "import \"time\""},
+		},
+		{
+			name: "simple duration - minutes",
+			toml: `[config]
+timeout = "5m"`,
+			want: []string{"Timeout", "time.Duration", "5 * time.Minute", "import \"time\""},
+		},
+		{
+			name: "simple duration - hours",
+			toml: `[config]
+timeout = "2h"`,
+			want: []string{"Timeout", "time.Duration", "2 * time.Hour", "import \"time\""},
+		},
+		{
+			name: "zero duration",
+			toml: `[config]
+timeout = "0s"`,
+			want: []string{"Timeout", "time.Duration", "0 * time.Nanosecond", "import \"time\""},
+		},
+		{
+			name: "complex duration - hours and minutes",
+			toml: `[config]
+timeout = "2h30m"`,
+			want: []string{"Timeout", "time.Duration", "2*time.Hour + 30*time.Minute", "import \"time\""},
+		},
+		{
+			name: "complex duration - minutes and seconds",
+			toml: `[config]
+timeout = "5m30s"`,
+			want: []string{"Timeout", "time.Duration", "5*time.Minute + 30*time.Second", "import \"time\""},
+		},
+		{
+			name: "complex duration - hours, minutes and seconds",
+			toml: `[config]
+timeout = "1h30m45s"`,
+			want: []string{"Timeout", "time.Duration", "1*time.Hour + 30*time.Minute + 45*time.Second", "import \"time\""},
+		},
+		{
+			name: "complex duration - seconds and milliseconds",
+			toml: `[config]
+timeout = "3s500ms"`,
+			want: []string{"Timeout", "time.Duration", "3*time.Second + 500*time.Millisecond", "import \"time\""},
+		},
+		{
+			name: "complex duration - full decomposition",
+			toml: `[config]
+timeout = "1h2m3s4ms5us6ns"`,
+			want: []string{"Timeout", "time.Duration", "1*time.Hour + 2*time.Minute + 3*time.Second + 4*time.Millisecond + 5*time.Microsecond + 6*time.Nanosecond", "import \"time\""},
+		},
+		{
+			name: "multiple durations with different formats",
+			toml: `[config]
+short = "500ms"
+medium = "5m"
+long = "2h"
+complex = "1h30m"`,
+			want: []string{
+				"Short", "Medium", "Long", "Complex",
+				"time.Duration",
+				"500 * time.Millisecond",
+				"5 * time.Minute",
+				"2 * time.Hour",
+				"1*time.Hour + 30*time.Minute",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gen := New()
+			output, err := gen.Generate([]byte(tt.toml))
+			require.NoError(t, err, "Generate() should not error")
+
+			outputStr := string(output)
+			for _, want := range tt.want {
+				require.Contains(t, outputStr, want, "output missing expected string: %s", want)
 			}
 		})
 	}

@@ -64,13 +64,14 @@ type FeaturesItem struct {
 }
 
 type ServerConfig struct {
-	Addr           string
-	Debug          bool
-	IdleTimeout    time.Duration
-	MaxHeaderBytes int64
-	ReadTimeout    time.Duration
-	Timeout        time.Duration
-	WriteTimeout   time.Duration
+	Addr            string
+	Debug           bool
+	IdleTimeout     time.Duration
+	MaxHeaderBytes  int64
+	ReadTimeout     time.Duration
+	ShutdownTimeout time.Duration
+	Timeout         time.Duration
+	WriteTimeout    time.Duration
 }
 
 type ServiceConfig struct {
@@ -149,13 +150,14 @@ var (
 	}
 	Name   string = "cfgx"
 	Server        = ServerConfig{
-		Addr:           ":8080",
-		Debug:          true,
-		IdleTimeout:    5 * time.Minute,
-		MaxHeaderBytes: 1048576,
-		ReadTimeout:    15 * time.Second,
-		Timeout:        30 * time.Second,
-		WriteTimeout:   15 * time.Second,
+		Addr:            ":8080",
+		Debug:           true,
+		IdleTimeout:     5 * time.Minute,
+		MaxHeaderBytes:  1048576,
+		ReadTimeout:     15 * time.Second,
+		ShutdownTimeout: 2*time.Hour + 30*time.Minute,
+		Timeout:         30 * time.Second,
+		WriteTimeout:    15 * time.Second,
 	}
 	Service = ServiceConfig{
 		AllowedOrigins: []string{"https://example.com", "https://app.example.com"},

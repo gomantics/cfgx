@@ -562,6 +562,8 @@ func (g *Generator) writeValue(buf *bytes.Buffer, v any) {
 
 // writeDurationLiteral parses a duration string at generation time and writes
 // it as a duration literal in a human-readable format using time constants.
+// Complex durations like '2h30m' are decomposed into multiple time constants
+// (e.g., 2*time.Hour + 30*time.Minute) for better readability.
 func (g *Generator) writeDurationLiteral(buf *bytes.Buffer, s string) {
 	d, err := time.ParseDuration(s)
 	if err != nil {
@@ -570,24 +572,47 @@ func (g *Generator) writeDurationLiteral(buf *bytes.Buffer, s string) {
 		return
 	}
 
-	// Write in a readable format using time constants
-	switch {
-	case d == 0:
-		buf.WriteString("0")
-	case d%time.Hour == 0:
-		fmt.Fprintf(buf, "%d * time.Hour", d/time.Hour)
-	case d%time.Minute == 0:
-		fmt.Fprintf(buf, "%d * time.Minute", d/time.Minute)
-	case d%time.Second == 0:
-		fmt.Fprintf(buf, "%d * time.Second", d/time.Second)
-	case d%time.Millisecond == 0:
-		fmt.Fprintf(buf, "%d * time.Millisecond", d/time.Millisecond)
-	case d%time.Microsecond == 0:
-		fmt.Fprintf(buf, "%d * time.Microsecond", d/time.Microsecond)
-	default:
-		// For complex durations or nanoseconds, use the raw value
-		fmt.Fprintf(buf, "time.Duration(%d)", d)
+	if d == 0 {
+		buf.WriteString("0 * time.Nanosecond")
+		return
 	}
+
+	// Decompose duration into components from largest to smallest
+	components := []struct {
+		unit time.Duration
+		name string
+	}{
+		{time.Hour, "time.Hour"},
+		{time.Minute, "time.Minute"},
+		{time.Second, "time.Second"},
+		{time.Millisecond, "time.Millisecond"},
+		{time.Microsecond, "time.Microsecond"},
+		{time.Nanosecond, "time.Nanosecond"},
+	}
+
+	remaining := d
+	parts := []string{}
+
+	for _, comp := range components {
+		if remaining >= comp.unit {
+			count := remaining / comp.unit
+			if count > 0 {
+				parts = append(parts, fmt.Sprintf("%d*%s", count, comp.name))
+				remaining = remaining % comp.unit
+			}
+		}
+	}
+
+	if len(parts) == 0 {
+		// Should not happen for non-zero durations, but handle it
+		buf.WriteString("0*time.Nanosecond")
+		return
+	}
+
+	// Join parts with " + "
+	// Note: gofmt will add spaces around * for simple expressions (e.g., "30 * time.Second")
+	// but keep them compact in complex expressions (e.g., "2*time.Hour + 30*time.Minute")
+	buf.WriteString(strings.Join(parts, " + "))
 }
 
 // writeArray writes an array literal in Go slice syntax. The function infers the
