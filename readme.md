@@ -184,7 +184,7 @@ In your CI/CD pipeline or Dockerfile:
 
 ```dockerfile
 # Dockerfile
-FROM golang:1.21 as builder
+FROM golang:1.25 as builder
 COPY config.${ENV}.toml config.toml
 RUN cfgx generate --in config.toml --out config/config.go
 RUN go build -o app
