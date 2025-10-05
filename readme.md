@@ -16,7 +16,7 @@ The TOML is parsed at generation time, and values are baked directly into your G
 # config.toml
 [server]
 addr = ":8080"
-timeout = 30
+timeout = "30s"
 ```
 
 ```bash
@@ -27,14 +27,16 @@ cfgx generate --in config.toml --out config/config.go
 // Generated: config/config.go
 package config
 
+import "time"
+
 type ServerConfig struct {
     Addr    string
-    Timeout int
+    Timeout time.Duration
 }
 
 var Server = ServerConfig{
     Addr:    ":8080",
-    Timeout: 30,
+    Timeout: 30 * time.Second,
 }
 ```
 
@@ -44,7 +46,8 @@ Use it:
 import "yourapp/config"
 
 func main() {
-    fmt.Println(config.Server.Addr)  // ":8080"
+    fmt.Println(config.Server.Addr)     // ":8080"
+    fmt.Println(config.Server.Timeout)  // 30s
 }
 ```
 
@@ -81,7 +84,7 @@ go install github.com/gomantics/cfgx/cmd/cfgx@latest
 ```toml
 [server]
 addr = ":8080"
-read_timeout = 15
+read_timeout = "15s"
 
 [database]
 dsn = "postgres://localhost/myapp"
@@ -114,7 +117,7 @@ import "yourapp/internal/config"
 func main() {
     server := &http.Server{
         Addr:        config.Server.Addr,
-        ReadTimeout: time.Duration(config.Server.ReadTimeout) * time.Second,
+        ReadTimeout: config.Server.ReadTimeout, // Already time.Duration!
     }
     server.ListenAndServe()
 }
@@ -270,12 +273,60 @@ TOML is better for config: comments, clear types, human-friendly, no indentation
 <details>
 <summary><b>Q: What types are supported?</b></summary>
 
-- Primitives: `string`, `int`, `float64`, `bool`
-- Arrays: `[]string`, `[]int`, etc.
-- Nested tables (structs)
-- Arrays of tables
+- **Primitives**: `string`, `int64`, `float64`, `bool`
+- **Durations**: `time.Duration` (automatically detected from strings like `"30s"`, `"5m"`, `"2h30m"`)
+- **Arrays**: `[]string`, `[]int64`, `[]time.Duration`, etc.
+- **Nested tables** (structs)
+- **Arrays of tables**
 
-For time-related config (timeouts, durations), use integers representing seconds/milliseconds and convert them in your application code (e.g., `time.Duration(config.Server.ReadTimeout) * time.Second`)
+### Duration Support
+
+Durations are automatically detected and converted to `time.Duration` when you use Go's duration string format:
+
+```toml
+[server]
+timeout = "30s"
+read_timeout = "15s"
+idle_timeout = "5m"
+shutdown_timeout = "10s"
+
+[cache]
+ttl = "1h"
+cleanup_interval = "5m30s"
+```
+
+Generates:
+
+```go
+type ServerConfig struct {
+    Timeout         time.Duration
+    ReadTimeout     time.Duration
+    IdleTimeout     time.Duration
+    ShutdownTimeout time.Duration
+}
+
+var Server = ServerConfig{
+    Timeout:         30 * time.Second,
+    ReadTimeout:     15 * time.Second,
+    IdleTimeout:     5 * time.Minute,
+    ShutdownTimeout: 10 * time.Second,
+}
+```
+
+Supported duration units: `ns`, `us`/`µs`, `ms`, `s`, `m`, `h`
+
+Use it naturally with Go's time package:
+
+```go
+server := &http.Server{
+    Addr:         config.Server.Addr,
+    ReadTimeout:  config.Server.ReadTimeout,  // Already time.Duration!
+    WriteTimeout: config.Server.WriteTimeout,
+}
+
+timer := time.NewTimer(config.Server.Timeout)
+expiresAt := time.Now().Add(config.Cache.Ttl)
+```
 
 </details>
 
@@ -286,7 +337,8 @@ For time-related config (timeouts, durations), use integers representing seconds
 - **TOML 1.0** — Full spec support via BurntSushi/toml
 - **Nested structures** — Tables become nested structs
 - **Arrays** — Support for arrays of primitives and tables
-- **Multiple types** — string, int, float64, bool
+- **Multiple types** — string, int64, float64, bool, time.Duration
+- **Duration support** — Automatic detection and conversion of duration strings (`"30s"`, `"5m"`, `"2h"`)
 - **Environment variable overrides** — Override any config value at generation time
 - **No dependencies** — Generated code has zero runtime dependencies
 

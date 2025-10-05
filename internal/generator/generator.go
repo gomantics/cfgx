@@ -91,9 +91,9 @@ func (g *Generator) Generate(tomlData []byte) ([]byte, error) {
 	return formatted, nil
 }
 
-// needsTimeImport checks if any value in the data map is a time.Time type,
-// recursively traversing nested maps and arrays to determine if the generated
-// code needs to import the "time" package.
+// needsTimeImport checks if any value in the data map is a time.Time type
+// or a duration string, recursively traversing nested maps and arrays to
+// determine if the generated code needs to import the "time" package.
 func (g *Generator) needsTimeImport(data map[string]any) bool {
 	for _, v := range data {
 		if g.needsTimeImportValue(v) {
@@ -107,6 +107,11 @@ func (g *Generator) needsTimeImportValue(v any) bool {
 	switch val := v.(type) {
 	case time.Time:
 		return true
+	case string:
+		// Check if string is a valid duration
+		if g.isDurationString(val) {
+			return true
+		}
 	case map[string]any:
 		return g.needsTimeImport(val)
 	case []any:
@@ -119,6 +124,12 @@ func (g *Generator) needsTimeImportValue(v any) bool {
 		}
 	}
 	return false
+}
+
+// isDurationString checks if a string can be parsed as a time.Duration.
+func (g *Generator) isDurationString(s string) bool {
+	_, err := time.ParseDuration(s)
+	return err == nil
 }
 
 // generateStructsAndVars orchestrates the generation of all struct type definitions
@@ -222,7 +233,66 @@ func (g *Generator) generateStructsAndVars(buf *bytes.Buffer, data map[string]an
 
 	buf.WriteString(")\n")
 
+	// Generate helper functions if needed
+	if err := g.generateHelperFunctions(buf, data); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// generateHelperFunctions generates helper functions for parsing time values
+// if they are present in the configuration data.
+func (g *Generator) generateHelperFunctions(buf *bytes.Buffer, data map[string]any) error {
+	hasTime := g.hasTimeValue(data)
+
+	if !hasTime {
+		return nil
+	}
+
+	buf.WriteString("\n")
+	buf.WriteString(`func mustParseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic("failed to parse time: " + err.Error())
+	}
+	return t
+}
+`)
+
+	return nil
+}
+
+// hasTimeValue checks if any value in the data is a time.Time.
+func (g *Generator) hasTimeValue(data map[string]any) bool {
+	for _, v := range data {
+		if g.hasTimeValueRecursive(v) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *Generator) hasTimeValueRecursive(v any) bool {
+	switch val := v.(type) {
+	case time.Time:
+		return true
+	case map[string]any:
+		return g.hasTimeValue(val)
+	case []any:
+		for _, item := range val {
+			if g.hasTimeValueRecursive(item) {
+				return true
+			}
+		}
+	case []map[string]any:
+		for _, m := range val {
+			if g.hasTimeValue(m) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // collectNestedStructs recursively collects all struct definitions needed for the
@@ -491,6 +561,10 @@ func (g *Generator) writeArrayOfStructs(buf *bytes.Buffer, arr any, indent int) 
 func (g *Generator) toGoType(v any) string {
 	switch val := v.(type) {
 	case string:
+		// Check if this is a duration string
+		if g.isDurationString(val) {
+			return "time.Duration"
+		}
 		return "string"
 	case int64:
 		return "int64"
@@ -523,12 +597,18 @@ func (g *Generator) toGoType(v any) string {
 // serialization of various Go types into their source code representation.
 //
 // Strings are quoted, numbers are formatted appropriately, time.Time values are
-// converted to mustParseTime calls, and arrays are handled recursively. This ensures
-// the generated code is valid Go syntax that can be compiled directly.
+// converted to mustParseTime calls, duration strings are parsed and written as
+// duration literals, and arrays are handled recursively. This ensures the generated
+// code is valid Go syntax that can be compiled directly.
 func (g *Generator) writeValue(buf *bytes.Buffer, v any) {
 	switch val := v.(type) {
 	case string:
-		fmt.Fprintf(buf, "%q", val)
+		// Check if this is a duration string
+		if g.isDurationString(val) {
+			g.writeDurationLiteral(buf, val)
+		} else {
+			fmt.Fprintf(buf, "%q", val)
+		}
 	case int64:
 		fmt.Fprintf(buf, "%d", val)
 	case int:
@@ -544,6 +624,36 @@ func (g *Generator) writeValue(buf *bytes.Buffer, v any) {
 		g.writeArray(buf, val)
 	default:
 		buf.WriteString("nil")
+	}
+}
+
+// writeDurationLiteral parses a duration string at generation time and writes
+// it as a duration literal in a human-readable format using time constants.
+func (g *Generator) writeDurationLiteral(buf *bytes.Buffer, s string) {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		// This should never happen since isDurationString already validated it
+		fmt.Fprintf(buf, "time.Duration(0) /* invalid: %s */", s)
+		return
+	}
+
+	// Write in a readable format using time constants
+	switch {
+	case d == 0:
+		buf.WriteString("0")
+	case d%time.Hour == 0:
+		fmt.Fprintf(buf, "%d * time.Hour", d/time.Hour)
+	case d%time.Minute == 0:
+		fmt.Fprintf(buf, "%d * time.Minute", d/time.Minute)
+	case d%time.Second == 0:
+		fmt.Fprintf(buf, "%d * time.Second", d/time.Second)
+	case d%time.Millisecond == 0:
+		fmt.Fprintf(buf, "%d * time.Millisecond", d/time.Millisecond)
+	case d%time.Microsecond == 0:
+		fmt.Fprintf(buf, "%d * time.Microsecond", d/time.Microsecond)
+	default:
+		// For complex durations or nanoseconds, use the raw value
+		fmt.Fprintf(buf, "time.Duration(%d)", d)
 	}
 }
 

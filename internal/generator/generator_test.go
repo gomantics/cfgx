@@ -180,6 +180,20 @@ values = ["a", "b", "c"]`,
 values = [1, 2, 3]`,
 			want: []string{"Values", "[]int64", "[]int64{1, 2, 3}"},
 		},
+		{
+			name: "duration type",
+			toml: `[config]
+timeout = "30s"`,
+			want: []string{"Timeout", "time.Duration", "30 * time.Second", "import \"time\""},
+		},
+		{
+			name: "duration types with various formats",
+			toml: `[config]
+short = "500ms"
+medium = "5m"
+long = "2h"`,
+			want: []string{"Short", "Medium", "Long", "time.Duration", "500 * time.Millisecond", "5 * time.Minute", "2 * time.Hour"},
+		},
 	}
 
 	for _, tt := range tests {

@@ -2,6 +2,8 @@
 
 package config
 
+import "time"
+
 type AppConfig struct {
 	Logging AppLoggingConfig
 	Name    string
@@ -26,7 +28,7 @@ type CacheConfig struct {
 	MaxEntries int64
 	Outputs    []string
 	Redis      CacheRedisConfig
-	Ttl        int64
+	Ttl        time.Duration
 }
 
 type CacheRedisConfig struct {
@@ -36,7 +38,7 @@ type CacheRedisConfig struct {
 }
 
 type DatabaseConfig struct {
-	ConnMaxLifetime int64
+	ConnMaxLifetime time.Duration
 	Dsn             string
 	MaxIdleConns    int64
 	MaxOpenConns    int64
@@ -64,10 +66,11 @@ type FeaturesItem struct {
 type ServerConfig struct {
 	Addr           string
 	Debug          bool
+	IdleTimeout    time.Duration
 	MaxHeaderBytes int64
-	ReadTimeout    int64
-	Timeout        int64
-	WriteTimeout   int64
+	ReadTimeout    time.Duration
+	Timeout        time.Duration
+	WriteTimeout   time.Duration
 }
 
 type ServiceConfig struct {
@@ -102,10 +105,10 @@ var (
 			Db:       0,
 			Password: "",
 		},
-		Ttl: 3600,
+		Ttl: 1 * time.Hour,
 	}
 	Database = DatabaseConfig{
-		ConnMaxLifetime: 300,
+		ConnMaxLifetime: 5 * time.Minute,
 		Dsn:             "postgres://localhost/myapp",
 		MaxIdleConns:    5,
 		MaxOpenConns:    25,
@@ -148,10 +151,11 @@ var (
 	Server        = ServerConfig{
 		Addr:           ":8080",
 		Debug:          true,
+		IdleTimeout:    5 * time.Minute,
 		MaxHeaderBytes: 1048576,
-		ReadTimeout:    15,
-		Timeout:        30,
-		WriteTimeout:   15,
+		ReadTimeout:    15 * time.Second,
+		Timeout:        30 * time.Second,
+		WriteTimeout:   15 * time.Second,
 	}
 	Service = ServiceConfig{
 		AllowedOrigins: []string{"https://example.com", "https://app.example.com"},
