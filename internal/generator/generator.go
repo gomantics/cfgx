@@ -91,9 +91,9 @@ func (g *Generator) Generate(tomlData []byte) ([]byte, error) {
 	return formatted, nil
 }
 
-// needsTimeImport checks if any value in the data map is a time.Time type
-// or a duration string, recursively traversing nested maps and arrays to
-// determine if the generated code needs to import the "time" package.
+// needsTimeImport checks if any value in the data map is a duration string,
+// recursively traversing nested maps and arrays to determine if the generated
+// code needs to import the "time" package.
 func (g *Generator) needsTimeImport(data map[string]any) bool {
 	for _, v := range data {
 		if g.needsTimeImportValue(v) {
@@ -105,8 +105,6 @@ func (g *Generator) needsTimeImport(data map[string]any) bool {
 
 func (g *Generator) needsTimeImportValue(v any) bool {
 	switch val := v.(type) {
-	case time.Time:
-		return true
 	case string:
 		// Check if string is a valid duration
 		if g.isDurationString(val) {
@@ -233,66 +231,7 @@ func (g *Generator) generateStructsAndVars(buf *bytes.Buffer, data map[string]an
 
 	buf.WriteString(")\n")
 
-	// Generate helper functions if needed
-	if err := g.generateHelperFunctions(buf, data); err != nil {
-		return err
-	}
-
 	return nil
-}
-
-// generateHelperFunctions generates helper functions for parsing time values
-// if they are present in the configuration data.
-func (g *Generator) generateHelperFunctions(buf *bytes.Buffer, data map[string]any) error {
-	hasTime := g.hasTimeValue(data)
-
-	if !hasTime {
-		return nil
-	}
-
-	buf.WriteString("\n")
-	buf.WriteString(`func mustParseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		panic("failed to parse time: " + err.Error())
-	}
-	return t
-}
-`)
-
-	return nil
-}
-
-// hasTimeValue checks if any value in the data is a time.Time.
-func (g *Generator) hasTimeValue(data map[string]any) bool {
-	for _, v := range data {
-		if g.hasTimeValueRecursive(v) {
-			return true
-		}
-	}
-	return false
-}
-
-func (g *Generator) hasTimeValueRecursive(v any) bool {
-	switch val := v.(type) {
-	case time.Time:
-		return true
-	case map[string]any:
-		return g.hasTimeValue(val)
-	case []any:
-		for _, item := range val {
-			if g.hasTimeValueRecursive(item) {
-				return true
-			}
-		}
-	case []map[string]any:
-		for _, m := range val {
-			if g.hasTimeValue(m) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // collectNestedStructs recursively collects all struct definitions needed for the
@@ -554,10 +493,10 @@ func (g *Generator) writeArrayOfStructs(buf *bytes.Buffer, arr any, indent int) 
 // toGoType converts a value to its Go type string representation. This function
 // inspects the runtime type of a value and returns the corresponding Go type as a string.
 //
-// For primitive types (string, int64, float64, bool, time.Time), it returns the standard
-// type name. For slices, it recursively determines the element type. For maps and
-// []map[string]any, it returns placeholder strings ("struct", "[]struct") that will be
-// replaced with actual struct type names in context by the calling code.
+// For primitive types (string, int64, float64, bool), it returns the standard type name.
+// For slices, it recursively determines the element type. For maps and []map[string]any,
+// it returns placeholder strings ("struct", "[]struct") that will be replaced with actual
+// struct type names in context by the calling code.
 func (g *Generator) toGoType(v any) string {
 	switch val := v.(type) {
 	case string:
@@ -574,8 +513,6 @@ func (g *Generator) toGoType(v any) string {
 		return "float64"
 	case bool:
 		return "bool"
-	case time.Time:
-		return "time.Time"
 	case []any:
 		if len(val) > 0 {
 			elemType := g.toGoType(val[0])
@@ -596,10 +533,9 @@ func (g *Generator) toGoType(v any) string {
 // writeValue writes a Go value literal to the buffer. This function handles the
 // serialization of various Go types into their source code representation.
 //
-// Strings are quoted, numbers are formatted appropriately, time.Time values are
-// converted to mustParseTime calls, duration strings are parsed and written as
-// duration literals, and arrays are handled recursively. This ensures the generated
-// code is valid Go syntax that can be compiled directly.
+// Strings are quoted, numbers are formatted appropriately, duration strings are
+// parsed and written as duration literals, and arrays are handled recursively.
+// This ensures the generated code is valid Go syntax that can be compiled directly.
 func (g *Generator) writeValue(buf *bytes.Buffer, v any) {
 	switch val := v.(type) {
 	case string:
@@ -617,9 +553,6 @@ func (g *Generator) writeValue(buf *bytes.Buffer, v any) {
 		fmt.Fprintf(buf, "%g", val)
 	case bool:
 		fmt.Fprintf(buf, "%t", val)
-	case time.Time:
-		// Format as time.Parse call
-		fmt.Fprintf(buf, "mustParseTime(%q)", val.Format(time.RFC3339))
 	case []any:
 		g.writeArray(buf, val)
 	default:
