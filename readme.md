@@ -1,5 +1,7 @@
 # cfgx 🧩
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/gomantics/cfgx.svg)](https://pkg.go.dev/github.com/gomantics/cfgx) [![CI](https://github.com/gomantics/cfgx/actions/workflows/ci.yml/badge.svg)](https://github.com/gomantics/cfgx/actions/workflows/ci.yml)
+
 **Type-safe config generation for Go**
 
 Stop writing config structs by hand. Define your config in TOML, generate Go code.
