@@ -247,6 +247,8 @@ TOML is designed for config: readable, has comments, unambiguous types, no inden
 
 Issues and PRs welcome. This is a small, focused tool — let's keep it that way.
 
+For feature requests, start a discussion [here](https://github.com/gomantics/cfgx/discussions/categories/ideas).
+
 ## License
 
 [MIT](LICENSE)
