@@ -57,7 +57,6 @@ func main() {
 1. Values in `config.toml`
 2. Struct types to unmarshal into
 3. Loading logic with error handling
-4. Validation
 
 **The solution:** Define config once in TOML. Generate everything else.
 
@@ -184,7 +183,7 @@ In your CI/CD pipeline or Dockerfile:
 
 ```dockerfile
 # Dockerfile
-FROM golang:1.25 as builder
+FROM golang:1.25.1 as builder
 COPY config.${ENV}.toml config.toml
 RUN cfgx generate --in config.toml --out config/config.go
 RUN go build -o app
@@ -213,26 +212,40 @@ addr = ":8080"
 ```
 
 ```bash
-# Override config values with environment variables
+# Set environment variables before generation
 export CONFIG_DATABASE_DSN="postgres://prod-db:5432/myapp?sslmode=require"
 export CONFIG_SERVER_ADDR=":3000"
+
+# Generate config with overrides baked in
+cfgx generate --in config.toml --out config/config.go
 ```
+
+The generated code will have the overridden values:
+
+```go
+// Generated config/config.go
+var Database = DatabaseConfig{
+    Dsn: "postgres://prod-db:5432/myapp?sslmode=require",  // Overridden value
+    MaxConns: 25,
+}
+
+var Server = ServerConfig{
+    Addr: ":3000",  // Overridden value
+}
+```
+
+Use it in your application:
 
 ```go
 import "yourapp/config"
 
 func main() {
-    // Automatically uses CONFIG_DATABASE_DSN if set, otherwise the value from TOML
-    db := sql.Open("postgres", config.Database.DSN)
-
-    // Same for all config values - single source of truth
-    server := &http.Server{
-        Addr: config.Server.Addr,  // Uses CONFIG_SERVER_ADDR if set
-    }
+    db := sql.Open("postgres", config.Database.Dsn)
+    server := &http.Server{Addr: config.Server.Addr}
 }
 ```
 
-This keeps your config as a single source of truth - no manual mixing required.
+This keeps your config as a single source of truth with values baked at build time.
 
 **Coming soon:** Support for pulling secrets from Google Secret Manager and AWS Secrets Manager during build time.
 
@@ -255,10 +268,11 @@ TOML is better for config: comments, clear types, human-friendly, no indentation
 **Q: What types are supported?**
 
 - Primitives: `string`, `int`, `float64`, `bool`
-- Time types: `time.Duration`, `time.Time`
 - Arrays: `[]string`, `[]int`, etc.
 - Nested tables (structs)
 - Arrays of tables
+
+For time-related config (timeouts, durations), use integers representing seconds/milliseconds and convert them in your application code (e.g., `time.Duration(config.Server.ReadTimeout) * time.Second`)
 
 ---
 
@@ -269,8 +283,8 @@ TOML is better for config: comments, clear types, human-friendly, no indentation
 - **TOML 1.0** — Full spec support via BurntSushi/toml
 - **Nested structures** — Tables become nested structs
 - **Arrays** — Support for arrays of primitives and tables
-- **Multiple types** — string, int, float64, bool, time.Duration, time.Time
-- **Validation** — Optional validation from TOML comments (`@required`, `@enum`, `@range`)
+- **Multiple types** — string, int, float64, bool
+- **Environment variable overrides** — Override any config value at generation time
 - **No dependencies** — Generated code has zero runtime dependencies
 
 ---
