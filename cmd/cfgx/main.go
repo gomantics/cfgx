@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 
@@ -89,6 +90,41 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	// If version info wasn't set via ldflags (e.g., when using go install),
+	// try to get it from build info embedded by Go
+	if version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok {
+			// Get version from module version
+			if info.Main.Version != "" && info.Main.Version != "(devel)" {
+				version = info.Main.Version
+			}
+
+			// Extract VCS information from build settings
+			var vcsRevision, vcsTime string
+			for _, setting := range info.Settings {
+				switch setting.Key {
+				case "vcs.revision":
+					vcsRevision = setting.Value
+				case "vcs.time":
+					vcsTime = setting.Value
+				}
+			}
+
+			if vcsRevision != "" && commit == "none" {
+				// Take first 7 characters for short commit hash
+				if len(vcsRevision) > 7 {
+					commit = vcsRevision[:7]
+				} else {
+					commit = vcsRevision
+				}
+			}
+
+			if vcsTime != "" && date == "unknown" {
+				date = vcsTime
+			}
+		}
+	}
+
 	// Generate command flags
 	generateCmd.Flags().StringVarP(&inputFile, "in", "i", "config.toml", "input TOML file")
 	generateCmd.Flags().StringVarP(&outputFile, "out", "o", "", "output Go file (required)")
