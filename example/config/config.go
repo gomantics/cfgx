@@ -116,29 +116,29 @@ var (
 		},
 	}
 	Endpoints = []EndpointsItem{
-		EndpointsItem{
+		{
 			Methods:   []string{"GET", "POST"},
 			Path:      "/api/v1",
 			RateLimit: 100,
 		},
-		EndpointsItem{
+		{
 			Methods:   []string{"GET", "POST", "PUT", "DELETE"},
 			Path:      "/api/v2",
 			RateLimit: 200,
 		},
 	}
 	Features = []FeaturesItem{
-		FeaturesItem{
+		{
 			Enabled:  true,
 			Name:     "authentication",
 			Priority: 1,
 		},
-		FeaturesItem{
+		{
 			Enabled:  true,
 			Name:     "rate_limiting",
 			Priority: 2,
 		},
-		FeaturesItem{
+		{
 			Enabled:  false,
 			Name:     "caching",
 			Priority: 3,

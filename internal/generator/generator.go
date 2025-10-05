@@ -373,11 +373,13 @@ func (g *Generator) generateStructInit(buf *bytes.Buffer, parentStructName strin
 // generating struct literals with proper indentation. Each element is initialized
 // by calling generateStructInit for the nested structure.
 //
+// The type name is omitted from each element to comply with gofmt -s simplification rules.
+//
 // Example output:
 //
 //	[]ServerItem{
-//	    ServerItem{Host: "localhost", Port: 8080},
-//	    ServerItem{Host: "example.com", Port: 443},
+//	    {Host: "localhost", Port: 8080},
+//	    {Host: "example.com", Port: 443},
 //	}
 func (g *Generator) writeArrayOfTablesInit(buf *bytes.Buffer, structName string, arr any, indent int) error {
 	buf.WriteString("{\n")
@@ -388,7 +390,7 @@ func (g *Generator) writeArrayOfTablesInit(buf *bytes.Buffer, structName string,
 		for _, item := range val {
 			if m, ok := item.(map[string]any); ok {
 				buf.WriteString(indentStr)
-				buf.WriteString(structName)
+				// Omit type name for gofmt -s compliance
 				if err := g.generateStructInit(buf, structName, m, indent+1); err != nil {
 					return err
 				}
@@ -398,7 +400,7 @@ func (g *Generator) writeArrayOfTablesInit(buf *bytes.Buffer, structName string,
 	case []map[string]any:
 		for _, m := range val {
 			buf.WriteString(indentStr)
-			buf.WriteString(structName)
+			// Omit type name for gofmt -s compliance
 			if err := g.generateStructInit(buf, structName, m, indent+1); err != nil {
 				return err
 			}
