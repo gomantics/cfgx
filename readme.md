@@ -4,8 +4,6 @@
 
 Stop writing config structs by hand. Define your config in TOML, generate Go code.
 
----
-
 ## 💡 What is this?
 
 `cfgx` is a code generator that turns your TOML config into Go code.
@@ -48,8 +46,6 @@ func main() {
 }
 ```
 
----
-
 ## 🤔 Why?
 
 **The problem:** In Go apps, we define config multiple times:
@@ -70,15 +66,11 @@ func main() {
 
 **Trade-off:** Config is baked at build time. For environment-specific config, generate from different TOML files per environment during build.
 
----
-
 ## 📦 Install
 
 ```bash
 go install github.com/gomantics/cfgx/cmd/cfgx@latest
 ```
-
----
 
 ## 🚀 Usage
 
@@ -126,8 +118,6 @@ func main() {
 }
 ```
 
----
-
 ## ⚙️ CLI
 
 ```bash
@@ -162,8 +152,6 @@ cfgx generate --in config/worker.toml --out config/worker.go
 # Check version
 cfgx version
 ```
-
----
 
 ## ❓ FAQ
 
@@ -274,8 +262,6 @@ TOML is better for config: comments, clear types, human-friendly, no indentation
 
 For time-related config (timeouts, durations), use integers representing seconds/milliseconds and convert them in your application code (e.g., `time.Duration(config.Server.ReadTimeout) * time.Second`)
 
----
-
 ## ✨ Features
 
 - **Zero runtime overhead** — Config is parsed at generation time and baked into Go code
@@ -287,14 +273,10 @@ For time-related config (timeouts, durations), use integers representing seconds
 - **Environment variable overrides** — Override any config value at generation time
 - **No dependencies** — Generated code has zero runtime dependencies
 
----
-
 ## 💡 Inspiration
 
 - [sqlc](https://sqlc.dev) — Type-safe SQL
 - [protoc](https://protobuf.dev) — Schema-first development
-
----
 
 ## 📄 License
 
