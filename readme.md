@@ -69,7 +69,7 @@ func main() {
 - ✅ Self-contained binaries (no config files to deploy)
 - ✅ Simple - just generated Go code
 
-**Trade-off:** Config is baked at build time. For environment-specific config, generate separate packages per environment or use build tags.
+**Trade-off:** Config is baked at build time. For environment-specific config, generate from different TOML files per environment during build.
 
 ---
 
@@ -145,14 +145,14 @@ cfgx -in <file> -out <file> [options]
 
 ```bash
 # Basic
-cfgx -in config.toml -out config/config.go
+cfgx -in config/config.toml -out config/config.go
 
 # Custom package
 cfgx -in app.toml -out pkg/appcfg/config.go -pkg appcfg
 
 # Multiple configs
-cfgx -in server.toml -out config/server.go
-cfgx -in worker.toml -out config/worker.go
+cfgx -in config/server.toml -out config/server.go
+cfgx -in config/worker.toml -out config/worker.go
 ```
 
 ---
@@ -161,49 +161,83 @@ cfgx -in worker.toml -out config/worker.go
 
 **Q: What about environment-specific config (dev/staging/prod)?**
 
-Generate separate packages per environment:
+Create separate config files per environment and generate from the appropriate one during deployment:
 
 ```bash
-cfgx -in config.dev.toml -out config/dev/config.go -pkg dev
-cfgx -in config.prod.toml -out config/prod/config.go -pkg prod
+# Development
+cfgx -in config/config.dev.toml -out config/config.go
+
+# Production
+cfgx -in config/config.prod.toml -out config/config.go
 ```
 
-Use build tags:
+In your CI/CD pipeline or Dockerfile:
 
-```go
-// +build dev
+```dockerfile
+# Dockerfile
+FROM golang:1.21 as builder
+COPY config.${ENV}.toml config.toml
+RUN cfgx -in config.toml -out config/config.go
+RUN go build -o app
+```
 
-package config
-import devconfig "yourapp/config/dev"
-var Server = devconfig.Server
+Or build different binaries:
+
+```bash
+# CI pipeline
+cfgx -in config/config.prod.toml -out config/config.go && go build -o app-prod
+cfgx -in config/config.dev.toml -out config/config.go && go build -o app-dev
 ```
 
 **Q: What about secrets and environment variables?**
 
-Mix generated config with runtime values:
+`cfgx` supports environment variable overrides out of the box. Any config value can be overridden at generate time (not runtime) using environment variables with the pattern `CONFIG_<SECTION>_<KEY>`.
+
+```toml
+# config.toml
+[database]
+dsn = "postgres://localhost/myapp"
+max_conns = 25
+
+[server]
+addr = ":8080"
+```
+
+```bash
+# Override config values with environment variables
+export CONFIG_DATABASE_DSN="postgres://prod-db:5432/myapp?sslmode=require"
+export CONFIG_SERVER_ADDR=":3000"
+```
 
 ```go
-import (
-    "os"
-    "yourapp/config"
-)
+import "yourapp/config"
 
 func main() {
-    // Use generated config
-    addr := config.Server.Addr
+    // Automatically uses CONFIG_DATABASE_DSN if set, otherwise the value from TOML
+    db := sql.Open("postgres", config.Database.DSN)
 
-    // Load secrets at runtime
-    apiKey := os.Getenv("API_KEY")
-    dbPassword := os.Getenv("DB_PASSWORD")
-
-    // Combine them
-    dsn := fmt.Sprintf("%s?password=%s", config.Database.DSN, dbPassword)
+    // Same for all config values - single source of truth
+    server := &http.Server{
+        Addr: config.Server.Addr,  // Uses CONFIG_SERVER_ADDR if set
+    }
 }
 ```
+
+This keeps your config as a single source of truth - no manual mixing required.
+
+**Coming soon:** Support for pulling secrets from Google Secret Manager and AWS Secrets Manager during build time.
 
 **Q: Do I commit the generated code?**
 
 Yes. Like sqlc and protoc, generated code is part of your source tree.
+
+However, **do not commit production config files that contain secrets** (e.g., `config.prod.toml` with API keys or passwords). Instead:
+
+1. Keep production TOML files out of source control (add to `.gitignore`)
+2. Generate prod config during deployment from secrets stored in your CI/CD system or secret manager
+3. For local dev, use non-sensitive config files or placeholder values
+
+For production secrets, combine config with environment variables as shown in the "secrets and environment variables" FAQ above.
 
 **Q: Why TOML only?**
 
