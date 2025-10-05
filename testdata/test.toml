@@ -1,6 +1,3 @@
-# Global config
-name = "cfgx"
-
 # Simple types: string, int, float, bool
 [server]
 addr = ":8080"

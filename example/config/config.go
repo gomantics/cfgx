@@ -2,10 +2,57 @@
 
 package config
 
+type AppConfig struct {
+	Logging AppLoggingConfig
+	Name    string
+	Version string
+}
+
+type AppLoggingConfig struct {
+	File     string
+	Format   string
+	Level    string
+	Rotation AppLoggingRotationConfig
+}
+
+type AppLoggingRotationConfig struct {
+	Compress bool
+	MaxAge   int64
+	MaxSize  int64
+}
+
+type CacheConfig struct {
+	Enabled    bool
+	MaxEntries int64
+	Outputs    []string
+	Redis      CacheRedisConfig
+	Ttl        int64
+}
+
+type CacheRedisConfig struct {
+	Addr     string
+	Db       int64
+	Password string
+}
+
 type DatabaseConfig struct {
-	Dsn          string
-	MaxIdleConns int64
-	MaxOpenConns int64
+	ConnMaxLifetime int64
+	Dsn             string
+	MaxIdleConns    int64
+	MaxOpenConns    int64
+	Pool            DatabasePoolConfig
+}
+
+type DatabasePoolConfig struct {
+	Enabled bool
+	MaxSize int64
+	MinSize int64
+}
+
+type EndpointsItem struct {
+	Methods   []string
+	Path      string
+	RateLimit int64
 }
 
 type FeaturesItem struct {
@@ -14,52 +61,103 @@ type FeaturesItem struct {
 	Priority int64
 }
 
-type LoggingConfig struct {
-	Format  string
-	Level   string
-	Outputs []string
-}
-
-type RedisConfig struct {
-	Addr     string
-	Db       int64
-	Password string
-}
-
 type ServerConfig struct {
-	Addr         string
-	ReadTimeout  int64
-	WriteTimeout int64
+	Addr           string
+	Debug          bool
+	MaxHeaderBytes int64
+	ReadTimeout    int64
+	Timeout        int64
+	WriteTimeout   int64
 }
 
-var Database = DatabaseConfig{
-	Dsn:          "postgres://localhost:5432/myapp",
-	MaxIdleConns: 5,
-	MaxOpenConns: 25,
+type ServiceConfig struct {
+	AllowedOrigins []string
+	Features       []string
+	Name           string
+	Ports          []int64
+	Weights        []float64
 }
 
-var Features = []FeaturesItem{
-	FeaturesItem{
-		Enabled:  true,
-		Name:     "authentication",
-		Priority: 1,
-	},
-}
-
-var Logging = LoggingConfig{
-	Format:  "json",
-	Level:   "info",
-	Outputs: []string{"stdout"},
-}
-
-var Redis = RedisConfig{
-	Addr:     "localhost:6379",
-	Db:       0,
-	Password: "",
-}
-
-var Server = ServerConfig{
-	Addr:         ":8080",
-	ReadTimeout:  15,
-	WriteTimeout: 15,
-}
+var (
+	App = AppConfig{
+		Logging: AppLoggingConfig{
+			File:   "/var/log/app.log",
+			Format: "json",
+			Level:  "info",
+			Rotation: AppLoggingRotationConfig{
+				Compress: true,
+				MaxAge:   30,
+				MaxSize:  100,
+			},
+		},
+		Name:    "myservice",
+		Version: "1.0.0",
+	}
+	Cache = CacheConfig{
+		Enabled:    true,
+		MaxEntries: 10000,
+		Outputs:    []string{"stdout", "file"},
+		Redis: CacheRedisConfig{
+			Addr:     "localhost:6379",
+			Db:       0,
+			Password: "",
+		},
+		Ttl: 3600,
+	}
+	Database = DatabaseConfig{
+		ConnMaxLifetime: 300,
+		Dsn:             "postgres://localhost/myapp",
+		MaxIdleConns:    5,
+		MaxOpenConns:    25,
+		Pool: DatabasePoolConfig{
+			Enabled: true,
+			MaxSize: 10,
+			MinSize: 2,
+		},
+	}
+	Endpoints = []EndpointsItem{
+		EndpointsItem{
+			Methods:   []string{"GET", "POST"},
+			Path:      "/api/v1",
+			RateLimit: 100,
+		},
+		EndpointsItem{
+			Methods:   []string{"GET", "POST", "PUT", "DELETE"},
+			Path:      "/api/v2",
+			RateLimit: 200,
+		},
+	}
+	Features = []FeaturesItem{
+		FeaturesItem{
+			Enabled:  true,
+			Name:     "authentication",
+			Priority: 1,
+		},
+		FeaturesItem{
+			Enabled:  true,
+			Name:     "rate_limiting",
+			Priority: 2,
+		},
+		FeaturesItem{
+			Enabled:  false,
+			Name:     "caching",
+			Priority: 3,
+		},
+	}
+	Name   string = "cfgx"
+	Server        = ServerConfig{
+		Addr:           ":8080",
+		Debug:          true,
+		MaxHeaderBytes: 1048576,
+		ReadTimeout:    15,
+		Timeout:        30,
+		WriteTimeout:   15,
+	}
+	Service = ServiceConfig{
+		AllowedOrigins: []string{"https://example.com", "https://app.example.com"},
+		Features:       []string{"auth", "cache", "metrics"},
+		Name:           "api",
+		Ports:          []int64{8080, 8081, 8082},
+		Weights:        []float64{1, 2.5, 3.7},
+	}
+)

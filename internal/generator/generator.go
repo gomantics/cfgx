@@ -49,6 +49,19 @@ func New(opts ...Option) *Generator {
 	return g
 }
 
+// stripSuffix removes "Config" or "Item" suffix from a struct name.
+// This prevents nested structs from accumulating multiple suffixes
+// (e.g., "AppConfigLoggingConfig" -> "AppLogging").
+func stripSuffix(name string) string {
+	if strings.HasSuffix(name, "Config") {
+		return strings.TrimSuffix(name, "Config")
+	}
+	if strings.HasSuffix(name, "Item") {
+		return strings.TrimSuffix(name, "Item")
+	}
+	return name
+}
+
 // Generate parses TOML data and generates Go code.
 func (g *Generator) Generate(tomlData []byte) ([]byte, error) {
 	var data map[string]any
@@ -154,6 +167,8 @@ func (g *Generator) generateStructsAndVars(buf *bytes.Buffer, data map[string]an
 		buf.WriteString("\n\n")
 	}
 
+	buf.WriteString("var (\n")
+
 	for _, key := range keys {
 		varName := sx.PascalCase(key)
 		value := data[key]
@@ -161,49 +176,51 @@ func (g *Generator) generateStructsAndVars(buf *bytes.Buffer, data map[string]an
 		switch val := value.(type) {
 		case map[string]any:
 			structName := sx.PascalCase(key) + "Config"
-			fmt.Fprintf(buf, "var %s = %s", varName, structName)
+			fmt.Fprintf(buf, "\t%s = %s", varName, structName)
 			if err := g.generateStructInit(buf, structName, val, 0); err != nil {
 				return err
 			}
-			buf.WriteString("\n\n")
+			buf.WriteString("\n")
 		case []map[string]any:
 			if len(val) > 0 {
 				structName := sx.PascalCase(key) + "Item"
-				fmt.Fprintf(buf, "var %s = []%s", varName, structName)
+				fmt.Fprintf(buf, "\t%s = []%s", varName, structName)
 				if err := g.writeArrayOfTablesInit(buf, structName, val, 0); err != nil {
 					return err
 				}
-				buf.WriteString("\n\n")
+				buf.WriteString("\n")
 			} else {
-				fmt.Fprintf(buf, "var %s []%sItem\n\n", varName, sx.PascalCase(key))
+				fmt.Fprintf(buf, "\t%s []%sItem\n", varName, sx.PascalCase(key))
 			}
 		case []any:
 			if len(val) > 0 {
 				if _, ok := val[0].(map[string]any); ok {
 					structName := sx.PascalCase(key) + "Item"
-					fmt.Fprintf(buf, "var %s = []%s", varName, structName)
+					fmt.Fprintf(buf, "\t%s = []%s", varName, structName)
 					if err := g.writeArrayOfTablesInit(buf, structName, val, 0); err != nil {
 						return err
 					}
-					buf.WriteString("\n\n")
+					buf.WriteString("\n")
 				} else {
 					goType := g.toGoType(value)
-					fmt.Fprintf(buf, "var %s %s = ", varName, goType)
+					fmt.Fprintf(buf, "\t%s %s = ", varName, goType)
 					g.writeValue(buf, value)
-					buf.WriteString("\n\n")
+					buf.WriteString("\n")
 				}
 			} else {
 				goType := g.toGoType(value)
-				fmt.Fprintf(buf, "var %s %s\n\n", varName, goType)
+				fmt.Fprintf(buf, "\t%s %s\n", varName, goType)
 			}
 		default:
 			// Generate simple variable
 			goType := g.toGoType(value)
-			fmt.Fprintf(buf, "var %s %s = ", varName, goType)
+			fmt.Fprintf(buf, "\t%s %s = ", varName, goType)
 			g.writeValue(buf, value)
-			buf.WriteString("\n\n")
+			buf.WriteString("\n")
 		}
 	}
+
+	buf.WriteString(")\n")
 
 	return nil
 }
@@ -213,7 +230,7 @@ func (g *Generator) generateStructsAndVars(buf *bytes.Buffer, data map[string]an
 // that must be defined.
 //
 // The function builds unique struct names by concatenating parent and child names
-// (e.g., "DatabaseConfig" -> "DatabaseConfigCredentialsConfig" for nested credentials).
+// (e.g., "DatabaseConfig" -> "DatabaseCredentialsConfig" for nested credentials).
 // It handles:
 //   - Nested maps (inline tables) - suffixed with "Config"
 //   - Arrays of maps (array of tables) - suffixed with "Item"
@@ -230,19 +247,19 @@ func (g *Generator) collectNestedStructs(structs map[string]map[string]any, name
 	for key, val := range data {
 		switch v := val.(type) {
 		case map[string]any:
-			nestedName := name + sx.PascalCase(key) + "Config"
+			nestedName := stripSuffix(name) + sx.PascalCase(key) + "Config"
 			g.collectNestedStructs(structs, nestedName, v)
 		case []any:
 			// Check if it's an array of maps
 			if len(v) > 0 {
 				if m, ok := v[0].(map[string]any); ok {
-					nestedName := name + sx.PascalCase(key) + "Item"
+					nestedName := stripSuffix(name) + sx.PascalCase(key) + "Item"
 					g.collectNestedStructs(structs, nestedName, m)
 				}
 			}
 		case []map[string]any:
 			if len(v) > 0 {
-				nestedName := name + sx.PascalCase(key) + "Item"
+				nestedName := stripSuffix(name) + sx.PascalCase(key) + "Item"
 				g.collectNestedStructs(structs, nestedName, v[0])
 			}
 		}
@@ -274,13 +291,13 @@ func (g *Generator) generateStruct(buf *bytes.Buffer, name string, fields map[st
 
 		// Handle nested structs - prefix with parent struct name
 		if _, ok := value.(map[string]any); ok {
-			goType = name + sx.PascalCase(fieldName) + "Config"
+			goType = stripSuffix(name) + sx.PascalCase(fieldName) + "Config"
 		} else if arr, ok := value.([]any); ok && len(arr) > 0 {
 			if _, isMap := arr[0].(map[string]any); isMap {
-				goType = "[]" + name + sx.PascalCase(fieldName) + "Item"
+				goType = "[]" + stripSuffix(name) + sx.PascalCase(fieldName) + "Item"
 			}
 		} else if arr, ok := value.([]map[string]any); ok && len(arr) > 0 {
-			goType = "[]" + name + sx.PascalCase(fieldName) + "Item"
+			goType = "[]" + stripSuffix(name) + sx.PascalCase(fieldName) + "Item"
 		}
 
 		fmt.Fprintf(buf, "\t%s %s\n", goFieldName, goType)
@@ -319,7 +336,7 @@ func (g *Generator) generateStructInit(buf *bytes.Buffer, parentStructName strin
 
 		switch val := value.(type) {
 		case map[string]any:
-			structType := parentStructName + sx.PascalCase(key) + "Config"
+			structType := stripSuffix(parentStructName) + sx.PascalCase(key) + "Config"
 			buf.WriteString(structType)
 			if err := g.generateStructInit(buf, structType, val, indent+1); err != nil {
 				return err

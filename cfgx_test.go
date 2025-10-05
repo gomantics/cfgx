@@ -12,74 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerate_Simple(t *testing.T) {
-	data, err := os.ReadFile("testdata/simple.toml")
+func TestGenerate(t *testing.T) {
+	data, err := os.ReadFile("testdata/test.toml")
 	require.NoError(t, err, "failed to read test file")
 
 	output, err := Generate(data, "testconfig", true)
 	require.NoError(t, err, "Generate() should not error")
 
 	// Write to temp file and try to compile it
-	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "config.go")
-
-	err = os.WriteFile(configFile, output, 0644)
-	require.NoError(t, err, "failed to write output file")
-
-	// Try to compile the generated code
-	cmd := exec.Command("go", "build", configFile)
-	cmd.Dir = tmpDir
-	output, err = cmd.CombinedOutput()
-	require.NoError(t, err, "generated code does not compile: %s", output)
-}
-
-func TestGenerate_Nested(t *testing.T) {
-	data, err := os.ReadFile("testdata/nested.toml")
-	require.NoError(t, err, "failed to read test file")
-
-	output, err := Generate(data, "testconfig", true)
-	require.NoError(t, err, "Generate() should not error")
-
-	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "config.go")
-
-	err = os.WriteFile(configFile, output, 0644)
-	require.NoError(t, err, "failed to write output file")
-
-	// Try to compile the generated code
-	cmd := exec.Command("go", "build", configFile)
-	cmd.Dir = tmpDir
-	output, err = cmd.CombinedOutput()
-	require.NoError(t, err, "generated code does not compile: %s", output)
-}
-
-func TestGenerate_Arrays(t *testing.T) {
-	data, err := os.ReadFile("testdata/arrays.toml")
-	require.NoError(t, err, "failed to read test file")
-
-	output, err := Generate(data, "testconfig", true)
-	require.NoError(t, err, "Generate() should not error")
-
-	tmpDir := t.TempDir()
-	configFile := filepath.Join(tmpDir, "config.go")
-
-	err = os.WriteFile(configFile, output, 0644)
-	require.NoError(t, err, "failed to write output file")
-
-	// Try to compile the generated code
-	cmd := exec.Command("go", "build", configFile)
-	cmd.Dir = tmpDir
-	output, err = cmd.CombinedOutput()
-	require.NoError(t, err, "generated code does not compile: %s", output)
-}
-
-func TestGenerate_Complex(t *testing.T) {
-	data, err := os.ReadFile("testdata/complex.toml")
-	require.NoError(t, err, "failed to read test file")
-
-	output, err := Generate(data, "testconfig", true)
-	require.NoError(t, err, "Generate() should not error")
-
 	tmpDir := t.TempDir()
 	configFile := filepath.Join(tmpDir, "config.go")
 
@@ -104,13 +44,11 @@ dsn = "localhost"
 max_conns = 10
 `)
 
-	// Set environment variables
 	os.Setenv("CONFIG_SERVER_ADDR", ":9090")
 	os.Setenv("CONFIG_DATABASE_MAX_CONNS", "100")
 	defer os.Unsetenv("CONFIG_SERVER_ADDR")
 	defer os.Unsetenv("CONFIG_DATABASE_MAX_CONNS")
 
-	// First parse and apply env overrides manually to simulate what the CLI does
 	var data map[string]any
 	err := toml.Unmarshal(tomlData, &data)
 	require.NoError(t, err)
@@ -118,7 +56,6 @@ max_conns = 10
 	err = envoverride.Apply(data)
 	require.NoError(t, err, "Apply() should not error")
 
-	// Re-encode to TOML
 	var buf bytes.Buffer
 	enc := toml.NewEncoder(&buf)
 	err = enc.Encode(data)
@@ -129,11 +66,9 @@ max_conns = 10
 
 	outputStr := string(output)
 
-	// Check that overridden values are in the generated code
 	require.Contains(t, outputStr, `":9090"`, "environment override for server.addr not applied")
 	require.Contains(t, outputStr, "100", "environment override for database.max_conns not applied")
 
-	// Original values should NOT be present
 	require.NotContains(t, outputStr, `":8080"`, "original server.addr should have been overridden")
 }
 
@@ -213,12 +148,14 @@ metrics_enabled = true
 		require.Contains(t, outputStr, expected, "expected struct definition not found: %s", expected)
 	}
 
+	require.Contains(t, outputStr, "var (", "expected var block")
+
 	expectedVars := []string{
-		"var Database = DatabaseConfig",
-		"var Features = FeaturesConfig",
-		"var Logging = LoggingConfig",
-		"var Redis = RedisConfig",
-		"var Server = ServerConfig",
+		"Database = DatabaseConfig",
+		"Features = FeaturesConfig",
+		"Logging = LoggingConfig",
+		"Redis = RedisConfig",
+		"Server = ServerConfig",
 	}
 
 	for _, expected := range expectedVars {
