@@ -15,10 +15,6 @@ import (
 var (
 	// version is set via ldflags at build time
 	version = "dev"
-	// commit is set via ldflags at build time
-	commit = "none"
-	// date is set via ldflags at build time
-	date = "unknown"
 )
 
 var (
@@ -82,10 +78,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("cfgx version %s\n", version)
-		fmt.Printf("commit: %s\n", commit)
-		fmt.Printf("built at: %s\n", date)
-		fmt.Printf("platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		fmt.Printf("cfgx %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
 	},
 }
 
@@ -97,30 +90,6 @@ func init() {
 			// Get version from module version
 			if info.Main.Version != "" && info.Main.Version != "(devel)" {
 				version = info.Main.Version
-			}
-
-			// Extract VCS information from build settings
-			var vcsRevision, vcsTime string
-			for _, setting := range info.Settings {
-				switch setting.Key {
-				case "vcs.revision":
-					vcsRevision = setting.Value
-				case "vcs.time":
-					vcsTime = setting.Value
-				}
-			}
-
-			if vcsRevision != "" && commit == "none" {
-				// Take first 7 characters for short commit hash
-				if len(vcsRevision) > 7 {
-					commit = vcsRevision[:7]
-				} else {
-					commit = vcsRevision
-				}
-			}
-
-			if vcsTime != "" && date == "unknown" {
-				date = vcsTime
 			}
 		}
 	}
