@@ -155,7 +155,8 @@ cfgx version
 
 ## ❓ FAQ
 
-**Q: What about environment-specific config (dev/staging/prod)?**
+<details>
+<summary><b>Q: What about environment-specific config (dev/staging/prod)?</b></summary>
 
 Create separate config files per environment and generate from the appropriate one during deployment:
 
@@ -185,7 +186,10 @@ cfgx generate --in config/config.prod.toml --out config/config.go && go build -o
 cfgx generate --in config/config.dev.toml --out config/config.go && go build -o app-dev
 ```
 
-**Q: What about secrets and environment variables?**
+</details>
+
+<details>
+<summary><b>Q: What about secrets and environment variables?</b></summary>
 
 `cfgx` supports environment variable overrides out of the box. Any config value can be overridden at generate time (not runtime) using environment variables with the pattern `CONFIG_<SECTION>_<KEY>`.
 
@@ -237,7 +241,10 @@ This keeps your config as a single source of truth with values baked at build ti
 
 **Coming soon:** Support for pulling secrets from Google Secret Manager and AWS Secrets Manager during build time.
 
-**Q: Do I commit the generated code?**
+</details>
+
+<details>
+<summary><b>Q: Do I commit the generated code?</b></summary>
 
 Yes. Like sqlc and protoc, generated code is part of your source tree.
 
@@ -249,11 +256,17 @@ However, **do not commit production config files that contain secrets** (e.g., `
 
 For production secrets, combine config with environment variables as shown in the "secrets and environment variables" FAQ above.
 
-**Q: Why TOML only?**
+</details>
+
+<details>
+<summary><b>Q: Why TOML only?</b></summary>
 
 TOML is better for config: comments, clear types, human-friendly, no indentation issues.
 
-**Q: What types are supported?**
+</details>
+
+<details>
+<summary><b>Q: What types are supported?</b></summary>
 
 - Primitives: `string`, `int`, `float64`, `bool`
 - Arrays: `[]string`, `[]int`, etc.
@@ -261,6 +274,8 @@ TOML is better for config: comments, clear types, human-friendly, no indentation
 - Arrays of tables
 
 For time-related config (timeouts, durations), use integers representing seconds/milliseconds and convert them in your application code (e.g., `time.Duration(config.Server.ReadTimeout) * time.Second`)
+
+</details>
 
 ## ✨ Features
 
