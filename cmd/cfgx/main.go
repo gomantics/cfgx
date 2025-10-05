@@ -11,7 +11,14 @@ import (
 	"github.com/gomantics/cfgx"
 )
 
-const version = "0.0.1"
+var (
+	// version is set via ldflags at build time
+	version = "dev"
+	// commit is set via ldflags at build time
+	commit = "none"
+	// date is set via ldflags at build time
+	date = "unknown"
+)
 
 var (
 	inputFile   string
@@ -74,7 +81,10 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("cfgx %s %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
+		fmt.Printf("cfgx version %s\n", version)
+		fmt.Printf("commit: %s\n", commit)
+		fmt.Printf("built at: %s\n", date)
+		fmt.Printf("platform: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	},
 }
 
