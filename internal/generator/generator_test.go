@@ -230,7 +230,7 @@ timeout = "2h"`,
 			name: "zero duration",
 			toml: `[config]
 timeout = "0s"`,
-			want: []string{"Timeout", "time.Duration", "0 * time.Nanosecond", "import \"time\""},
+			want: []string{"Timeout", "time.Duration", "Timeout: 0", "import \"time\""},
 		},
 		{
 			name: "complex duration - hours and minutes",

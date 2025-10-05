@@ -573,7 +573,7 @@ func (g *Generator) writeDurationLiteral(buf *bytes.Buffer, s string) {
 	}
 
 	if d == 0 {
-		buf.WriteString("0 * time.Nanosecond")
+		buf.WriteString("0")
 		return
 	}
 
@@ -605,7 +605,7 @@ func (g *Generator) writeDurationLiteral(buf *bytes.Buffer, s string) {
 
 	if len(parts) == 0 {
 		// Should not happen for non-zero durations, but handle it
-		buf.WriteString("0*time.Nanosecond")
+		buf.WriteString("0")
 		return
 	}
 
