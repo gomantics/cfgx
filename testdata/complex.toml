@@ -1,0 +1,47 @@
+# Complex real-world config
+[server]
+addr = ":8080"
+read_timeout = 15
+write_timeout = 15
+max_header_bytes = 1048576
+
+[database]
+dsn = "postgres://localhost/myapp"
+max_open_conns = 25
+max_idle_conns = 5
+conn_max_lifetime = 300
+
+[database.pool]
+enabled = true
+min_size = 2
+max_size = 10
+
+[cache]
+enabled = true
+ttl = 3600
+max_entries = 10000
+
+[cache.redis]
+addr = "localhost:6379"
+password = ""
+db = 0
+
+[logging]
+level = "info"
+format = "json"
+outputs = ["stdout", "file"]
+
+[[features]]
+name = "authentication"
+enabled = true
+priority = 1
+
+[[features]]
+name = "rate_limiting"
+enabled = true
+priority = 2
+
+[[features]]
+name = "caching"
+enabled = false
+priority = 3

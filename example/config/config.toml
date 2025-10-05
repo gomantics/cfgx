@@ -1,0 +1,25 @@
+# Example application configuration
+[server]
+addr = ":8080"
+read_timeout = 15
+write_timeout = 15
+
+[database]
+dsn = "postgres://localhost:5432/myapp"
+max_open_conns = 25
+max_idle_conns = 5
+
+[redis]
+addr = "localhost:6379"
+password = ""
+db = 0
+
+[logging]
+level = "info"
+format = "json"
+outputs = ["stdout"]
+
+[[features]]
+name = "authentication"
+enabled = true
+priority = 1

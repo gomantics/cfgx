@@ -20,7 +20,7 @@ timeout = 30
 ```
 
 ```bash
-cfgx -in config.toml -out config/config.go
+cfgx generate --in config.toml --out config/config.go
 ```
 
 ```go
@@ -102,13 +102,13 @@ debug = true
 ### 2. Generate Go code
 
 ```bash
-cfgx -in config.toml -out internal/config/config.go
+cfgx generate --in config.toml --out internal/config/config.go
 ```
 
 Or use `go:generate`:
 
 ```go
-//go:generate cfgx -in config.toml -out internal/config/config.go
+//go:generate cfgx generate --in config.toml --out internal/config/config.go
 ```
 
 ### 3. Use it
@@ -132,27 +132,36 @@ func main() {
 ## ⚙️ CLI
 
 ```bash
-cfgx -in <file> -out <file> [options]
+cfgx generate --in <file> --out <file> [options]
 ```
+
+**Commands:**
+
+- `generate` — Generate type-safe Go code from TOML config
+- `version` — Print version information
 
 **Options:**
 
-- `-in` — Input TOML file (default: `config.toml`)
-- `-out` — Output Go file (required)
-- `-pkg` — Package name (default: `config`)
+- `--in, -i` — Input TOML file (default: `config.toml`)
+- `--out, -o` — Output Go file (required)
+- `--pkg, -p` — Package name (default: inferred from output path or `config`)
+- `--no-env` — Disable environment variable overrides
 
 **Examples:**
 
 ```bash
 # Basic
-cfgx -in config/config.toml -out config/config.go
+cfgx generate --in config/config.toml --out config/config.go
 
 # Custom package
-cfgx -in app.toml -out pkg/appcfg/config.go -pkg appcfg
+cfgx generate --in app.toml --out pkg/appcfg/config.go --pkg appcfg
 
 # Multiple configs
-cfgx -in config/server.toml -out config/server.go
-cfgx -in config/worker.toml -out config/worker.go
+cfgx generate --in config/server.toml --out config/server.go
+cfgx generate --in config/worker.toml --out config/worker.go
+
+# Check version
+cfgx version
 ```
 
 ---
@@ -165,10 +174,10 @@ Create separate config files per environment and generate from the appropriate o
 
 ```bash
 # Development
-cfgx -in config/config.dev.toml -out config/config.go
+cfgx generate --in config/config.dev.toml --out config/config.go
 
 # Production
-cfgx -in config/config.prod.toml -out config/config.go
+cfgx generate --in config/config.prod.toml --out config/config.go
 ```
 
 In your CI/CD pipeline or Dockerfile:
@@ -177,7 +186,7 @@ In your CI/CD pipeline or Dockerfile:
 # Dockerfile
 FROM golang:1.21 as builder
 COPY config.${ENV}.toml config.toml
-RUN cfgx -in config.toml -out config/config.go
+RUN cfgx generate --in config.toml --out config/config.go
 RUN go build -o app
 ```
 
@@ -185,8 +194,8 @@ Or build different binaries:
 
 ```bash
 # CI pipeline
-cfgx -in config/config.prod.toml -out config/config.go && go build -o app-prod
-cfgx -in config/config.dev.toml -out config/config.go && go build -o app-dev
+cfgx generate --in config/config.prod.toml --out config/config.go && go build -o app-prod
+cfgx generate --in config/config.dev.toml --out config/config.go && go build -o app-dev
 ```
 
 **Q: What about secrets and environment variables?**
