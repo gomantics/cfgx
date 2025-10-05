@@ -1,16 +1,12 @@
-# cfgx 🧩
+# cfgx
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/gomantics/cfgx.svg)](https://pkg.go.dev/github.com/gomantics/cfgx) [![CI](https://github.com/gomantics/cfgx/actions/workflows/ci.yml/badge.svg)](https://github.com/gomantics/cfgx/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/gomantics/cfgx.svg)](https://pkg.go.dev/github.com/gomantics/cfgx)
+[![CI](https://github.com/gomantics/cfgx/actions/workflows/ci.yml/badge.svg)](https://github.com/gomantics/cfgx/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/gomantics/cfgx)](https://goreportcard.com/report/github.com/gomantics/cfgx)
 
-**Type-safe config generation for Go**
+Type-safe configuration code generation for Go.
 
-Stop writing config structs by hand. Define your config in TOML, generate Go code.
-
-## 💡 What is this?
-
-`cfgx` is a code generator that turns your TOML config into Go code.
-
-The TOML is parsed at generation time, and values are baked directly into your Go code as pre-initialized variables. No runtime parsing, no reflection, no dependencies.
+Define your config in TOML, generate strongly-typed Go code with zero runtime dependencies.
 
 ```toml
 # config.toml
@@ -20,333 +16,237 @@ timeout = "30s"
 ```
 
 ```bash
-cfgx generate --in config.toml --out config/config.go
+$ cfgx generate --in config.toml --out config/config.go
 ```
 
 ```go
-// Generated: config/config.go
-package config
-
-import "time"
-
-type ServerConfig struct {
-    Addr    string
-    Timeout time.Duration
-}
-
+// Generated
 var Server = ServerConfig{
     Addr:    ":8080",
     Timeout: 30 * time.Second,
 }
 ```
 
-Use it:
+## Status
 
-```go
-import "yourapp/config"
+**v0.x.x** — The API may introduce breaking changes between minor versions. That said, `cfgx` is a small, focused tool that's production-ready for baking configuration at build time. We encourage you to use it in production systems.
 
-func main() {
-    fmt.Println(config.Server.Addr)     // ":8080"
-    fmt.Println(config.Server.Timeout)  // 30s
-}
-```
+## Why
 
-## 🤔 Why?
+Traditional config loading in Go involves:
 
-**The problem:** In Go apps, we define config multiple times:
+1. Writing structs by hand
+2. Loading files at runtime
+3. Unmarshaling with error handling
+4. Runtime parsing overhead
 
-1. Values in `config.toml`
-2. Struct types to unmarshal into
-3. Loading logic with error handling
+`cfgx` generates everything at build time. No runtime parsing, no reflection, no config files to deploy. Just plain Go code with your values baked in.
 
-**The solution:** Define config once in TOML. Generate everything else.
+**vs. viper/koanf:**
 
-**Compared to viper/koanf:**
+- Zero runtime overhead
+- Compile-time type safety
+- Self-contained binaries
+- No reflection
 
-- ✅ No runtime parsing overhead
-- ✅ No reflection
-- ✅ Compile-time type safety
-- ✅ Self-contained binaries (no config files to deploy)
-- ✅ Simple - just generated Go code
+**Trade-off:** Config is baked at build time. For multi-environment setups, generate from different TOML files per environment during your build process.
 
-**Trade-off:** Config is baked at build time. For environment-specific config, generate from different TOML files per environment during build.
-
-## 📦 Install
+## Install
 
 ```bash
 go install github.com/gomantics/cfgx/cmd/cfgx@latest
 ```
 
-## 🚀 Usage
+## Usage
 
-### 1. Create config.toml
-
-```toml
-[server]
-addr = ":8080"
-read_timeout = "15s"
-
-[database]
-dsn = "postgres://localhost/myapp"
-max_conns = 25
-
-[app]
-name = "myservice"
-debug = true
-```
-
-### 2. Generate Go code
+### Basic
 
 ```bash
-cfgx generate --in config.toml --out internal/config/config.go
-```
-
-Or use `go:generate`:
-
-```go
-//go:generate cfgx generate --in config.toml --out internal/config/config.go
-```
-
-### 3. Use it
-
-```go
-package main
-
-import "yourapp/internal/config"
-
-func main() {
-    server := &http.Server{
-        Addr:        config.Server.Addr,
-        ReadTimeout: config.Server.ReadTimeout, // Already time.Duration!
-    }
-    server.ListenAndServe()
-}
-```
-
-## ⚙️ CLI
-
-```bash
-cfgx generate --in <file> --out <file> [options]
-```
-
-**Commands:**
-
-- `generate` — Generate type-safe Go code from TOML config
-- `version` — Print version information
-
-**Options:**
-
-- `--in, -i` — Input TOML file (default: `config.toml`)
-- `--out, -o` — Output Go file (required)
-- `--pkg, -p` — Package name (default: inferred from output path or `config`)
-- `--no-env` — Disable environment variable overrides
-
-**Examples:**
-
-```bash
-# Basic
-cfgx generate --in config/config.toml --out config/config.go
-
-# Custom package
-cfgx generate --in app.toml --out pkg/appcfg/config.go --pkg appcfg
-
-# Multiple configs
-cfgx generate --in config/server.toml --out config/server.go
-cfgx generate --in config/worker.toml --out config/worker.go
-
-# Check version
-cfgx version
-```
-
-## ❓ FAQ
-
-<details>
-<summary><b>Q: What about environment-specific config (dev/staging/prod)?</b></summary>
-
-Create separate config files per environment and generate from the appropriate one during deployment:
-
-```bash
-# Development
-cfgx generate --in config/config.dev.toml --out config/config.go
-
-# Production
-cfgx generate --in config/config.prod.toml --out config/config.go
-```
-
-In your CI/CD pipeline or Dockerfile:
-
-```dockerfile
-# Dockerfile
-FROM golang:1.25.1 as builder
-COPY config.${ENV}.toml config.toml
-RUN cfgx generate --in config.toml --out config/config.go
-RUN go build -o app
-```
-
-Or build different binaries:
-
-```bash
-# CI pipeline
-cfgx generate --in config/config.prod.toml --out config/config.go && go build -o app-prod
-cfgx generate --in config/config.dev.toml --out config/config.go && go build -o app-dev
-```
-
-</details>
-
-<details>
-<summary><b>Q: What about secrets and environment variables?</b></summary>
-
-`cfgx` supports environment variable overrides out of the box. Any config value can be overridden at generate time (not runtime) using environment variables with the pattern `CONFIG_<SECTION>_<KEY>`.
-
-```toml
-# config.toml
-[database]
-dsn = "postgres://localhost/myapp"
-max_conns = 25
-
-[server]
-addr = ":8080"
-```
-
-```bash
-# Set environment variables before generation
-export CONFIG_DATABASE_DSN="postgres://prod-db:5432/myapp?sslmode=require"
-export CONFIG_SERVER_ADDR=":3000"
-
-# Generate config with overrides baked in
 cfgx generate --in config.toml --out config/config.go
 ```
 
-The generated code will have the overridden values:
+### With go:generate
 
 ```go
-// Generated config/config.go
-var Database = DatabaseConfig{
-    Dsn: "postgres://prod-db:5432/myapp?sslmode=require",  // Overridden value
-    MaxConns: 25,
-}
-
-var Server = ServerConfig{
-    Addr: ":3000",  // Overridden value
-}
+//go:generate cfgx generate --in config.toml --out config/config.go
 ```
 
-Use it in your application:
+Then run:
 
-```go
-import "yourapp/config"
-
-func main() {
-    db := sql.Open("postgres", config.Database.Dsn)
-    server := &http.Server{Addr: config.Server.Addr}
-}
+```bash
+go generate ./...
 ```
 
-This keeps your config as a single source of truth with values baked at build time.
+### Multiple configs
 
-**Coming soon:** Support for pulling secrets from Google Secret Manager and AWS Secrets Manager during build time.
+```bash
+cfgx generate --in server.toml --out config/server.go
+cfgx generate --in worker.toml --out config/worker.go
+```
 
-</details>
+## CLI Reference
 
-<details>
-<summary><b>Q: Do I commit the generated code?</b></summary>
+```
+cfgx generate [flags]
 
-Yes. Like sqlc and protoc, generated code is part of your source tree.
+Flags:
+  -i, --in string      Input TOML file (default "config.toml")
+  -o, --out string     Output Go file (required)
+  -p, --pkg string     Package name (inferred from output path)
+      --no-env         Disable environment variable overrides
+```
 
-However, **do not commit production config files that contain secrets** (e.g., `config.prod.toml` with API keys or passwords). Instead:
+## Features
 
-1. Keep production TOML files out of source control (add to `.gitignore`)
-2. Generate prod config during deployment from secrets stored in your CI/CD system or secret manager
-3. For local dev, use non-sensitive config files or placeholder values
+### Type Detection
 
-For production secrets, combine config with environment variables as shown in the "secrets and environment variables" FAQ above.
-
-</details>
-
-<details>
-<summary><b>Q: Why TOML only?</b></summary>
-
-TOML is better for config: comments, clear types, human-friendly, no indentation issues.
-
-</details>
-
-<details>
-<summary><b>Q: What types are supported?</b></summary>
-
-- **Primitives**: `string`, `int64`, `float64`, `bool`
-- **Durations**: `time.Duration` (automatically detected from strings like `"30s"`, `"5m"`, `"2h30m"`)
-- **Arrays**: `[]string`, `[]int64`, `[]time.Duration`, etc.
-- **Nested tables** (structs)
-- **Arrays of tables**
-
-### Duration Support
-
-Durations are automatically detected and converted to `time.Duration` when you use Go's duration string format:
+Automatic type inference with smart duration detection:
 
 ```toml
 [server]
-timeout = "30s"
-read_timeout = "15s"
-idle_timeout = "5m"
-shutdown_timeout = "10s"
+port = 8080           # int64
+host = "localhost"    # string
+debug = true          # bool
+timeout = "30s"       # time.Duration (auto-detected)
 
-[cache]
-ttl = "1h"
-cleanup_interval = "5m30s"
+[database]
+max_conns = 25
+retry_delay = "5s"
 ```
 
 Generates:
 
 ```go
 type ServerConfig struct {
-    Timeout         time.Duration
-    ReadTimeout     time.Duration
-    IdleTimeout     time.Duration
-    ShutdownTimeout time.Duration
+    Port    int64
+    Host    string
+    Debug   bool
+    Timeout time.Duration
 }
 
 var Server = ServerConfig{
-    Timeout:         30 * time.Second,
-    ReadTimeout:     15 * time.Second,
-    IdleTimeout:     5 * time.Minute,
-    ShutdownTimeout: 10 * time.Second,
+    Port:    8080,
+    Host:    "localhost",
+    Debug:   true,
+    Timeout: 30 * time.Second,
 }
 ```
 
-Supported duration units: `ns`, `us`/`µs`, `ms`, `s`, `m`, `h`
+### Nested Structures
 
-Use it naturally with Go's time package:
+```toml
+[database.primary]
+dsn = "postgres://localhost/app"
 
-```go
-server := &http.Server{
-    Addr:         config.Server.Addr,
-    ReadTimeout:  config.Server.ReadTimeout,  // Already time.Duration!
-    WriteTimeout: config.Server.WriteTimeout,
-}
-
-timer := time.NewTimer(config.Server.Timeout)
-expiresAt := time.Now().Add(config.Cache.Ttl)
+[database.replica]
+dsn = "postgres://replica/app"
 ```
 
-</details>
+Generates nested structs automatically.
 
-## ✨ Features
+### Arrays
 
-- **Zero runtime overhead** — Config is parsed at generation time and baked into Go code
-- **Simple** — Just structs and variables, no magic
-- **TOML 1.0** — Full spec support via BurntSushi/toml
-- **Nested structures** — Tables become nested structs
-- **Arrays** — Support for arrays of primitives and tables
-- **Multiple types** — string, int64, float64, bool, time.Duration
-- **Duration support** — Automatic detection and conversion of duration strings (`"30s"`, `"5m"`, `"2h"`)
-- **Environment variable overrides** — Override any config value at generation time
-- **No dependencies** — Generated code has zero runtime dependencies
+```toml
+[app]
+hosts = ["api.example.com", "web.example.com"]
+ports = [8080, 8081]
+intervals = ["30s", "1m", "5m"]
+```
 
-## 💡 Inspiration
+### Environment Variable Overrides
 
-- [sqlc](https://sqlc.dev) — Type-safe SQL
-- [protoc](https://protobuf.dev) — Schema-first development
+Override any value at generation time:
 
-## 📄 License
+```bash
+export CONFIG_SERVER_ADDR=":3000"
+export CONFIG_DATABASE_MAX_CONNS="50"
+cfgx generate --in config.toml --out config/config.go
+```
 
-MIT
+The generated code will contain the overridden values. Useful for CI/CD pipelines where you inject secrets at build time.
+
+Use `--no-env` to disable this feature.
+
+## Supported Types
+
+- **Primitives:** `string`, `int64`, `float64`, `bool`
+- **Duration:** `time.Duration` (auto-detected from Go duration strings: `"30s"`, `"5m"`, `"2h30m"`)
+- **Arrays:** Arrays of any supported type
+- **Nested tables:** Becomes nested structs
+- **Array of tables:** `[]StructType`
+
+## Multi-Environment Config
+
+### Approach 1: Separate files per environment
+
+```bash
+# Development
+cfgx generate --in config.dev.toml --out config/config.go
+
+# Production
+cfgx generate --in config.prod.toml --out config/config.go
+```
+
+### Approach 2: CI/CD with environment variables
+
+```dockerfile
+FROM golang:1.25.1 as builder
+WORKDIR /app
+COPY . .
+RUN go install github.com/gomantics/cfgx/cmd/cfgx@latest
+RUN cfgx generate --in config.toml --out config/config.go
+RUN go build -o app
+```
+
+Set environment variables in your CI system:
+
+```bash
+CONFIG_DATABASE_DSN="postgres://prod.example.com/db"
+CONFIG_SERVER_ADDR=":443"
+```
+
+### Approach 3: Build matrix
+
+```bash
+cfgx generate --in config.prod.toml --out config/config.go && go build -o app-prod
+cfgx generate --in config.dev.toml --out config/config.go && go build -o app-dev
+```
+
+## FAQ
+
+### Should I commit generated code?
+
+**Yes.** Like `sqlc` and `protoc`, commit the generated code. It's part of your source tree and should be versioned.
+
+**However:** Don't commit TOML files with production secrets. Keep those in your secrets manager and inject via environment variables during build.
+
+### Do I need to distribute config files?
+
+**No.** The whole point is that config is baked into your binary. No runtime file loading needed.
+
+### Can I modify generated code?
+
+**No.** The generated file includes a `// Code generated ... DO NOT EDIT` marker. Regenerate instead.
+
+### Why TOML only?
+
+TOML is designed for config: readable, has comments, unambiguous types, no indentation issues. YAML and JSON don't handle config as well.
+
+### Coming Soon
+
+- Secret manager integration (AWS Secrets Manager, Google Secret Manager)
+- Config validation rules
+- Default value annotations
+
+## Inspiration
+
+- [sqlc](https://sqlc.dev) — If sqlc can generate type-safe database code, why not config?
+- [protoc](https://protobuf.dev) — Schema-first development works
+
+## Contributing
+
+Issues and PRs welcome. This is a small, focused tool — let's keep it that way.
+
+## License
+
+[MIT](LICENSE)
