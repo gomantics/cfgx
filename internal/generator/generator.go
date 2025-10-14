@@ -108,4 +108,3 @@ func (g *Generator) Generate(tomlData []byte) ([]byte, error) {
 
 	return formatted, nil
 }
-

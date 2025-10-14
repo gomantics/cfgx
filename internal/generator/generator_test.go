@@ -137,4 +137,3 @@ value = 3
 
 	require.True(t, alphaPos < betaPos && betaPos < zuluPos, "variables not sorted alphabetically")
 }
-
