@@ -1,0 +1,370 @@
+package generator
+
+import (
+	"bytes"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/gomantics/sx"
+)
+
+// generateStructsAndVars orchestrates the generation of all struct type definitions
+// and variable declarations from the parsed TOML data. It processes the data in two
+// phases:
+//
+//  1. Collects all struct definitions (including nested ones) by traversing the data
+//     and building a complete map of struct types needed.
+//  2. Generates the Go code for structs first (sorted alphabetically for deterministic
+//     output), then generates variable declarations with their initializations.
+//
+// This function handles top-level tables, arrays of tables, and nested structures,
+// ensuring proper naming conventions (e.g., "DatabaseConfig", "ServersItem") and
+// correct type references.
+func (g *Generator) generateStructsAndVars(buf *bytes.Buffer, data map[string]any) error {
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // deterministic output
+
+	allStructs := make(map[string]map[string]any)
+	for _, key := range keys {
+		if m, ok := data[key].(map[string]any); ok {
+			structName := sx.PascalCase(key) + "Config"
+			g.collectNestedStructs(allStructs, structName, m)
+		} else if arr, ok := data[key].([]map[string]any); ok {
+			if len(arr) > 0 {
+				structName := sx.PascalCase(key) + "Item"
+				g.collectNestedStructs(allStructs, structName, arr[0])
+			}
+		}
+	}
+
+	structNames := make([]string, 0, len(allStructs))
+	for name := range allStructs {
+		structNames = append(structNames, name)
+	}
+	sort.Strings(structNames)
+
+	for _, name := range structNames {
+		fields := allStructs[name]
+		if err := g.generateStruct(buf, name, fields); err != nil {
+			return err
+		}
+		buf.WriteString("\n\n")
+	}
+
+	buf.WriteString("var (\n")
+
+	for _, key := range keys {
+		varName := sx.PascalCase(key)
+		value := data[key]
+
+		switch val := value.(type) {
+		case map[string]any:
+			structName := sx.PascalCase(key) + "Config"
+			fmt.Fprintf(buf, "\t%s = %s", varName, structName)
+			if err := g.generateStructInit(buf, structName, val, 0); err != nil {
+				return err
+			}
+			buf.WriteString("\n")
+		case []map[string]any:
+			if len(val) > 0 {
+				structName := sx.PascalCase(key) + "Item"
+				fmt.Fprintf(buf, "\t%s = []%s", varName, structName)
+				if err := g.writeArrayOfTablesInit(buf, structName, val, 0); err != nil {
+					return err
+				}
+				buf.WriteString("\n")
+			} else {
+				fmt.Fprintf(buf, "\t%s []%sItem\n", varName, sx.PascalCase(key))
+			}
+		case []any:
+			if len(val) > 0 {
+				if _, ok := val[0].(map[string]any); ok {
+					structName := sx.PascalCase(key) + "Item"
+					fmt.Fprintf(buf, "\t%s = []%s", varName, structName)
+					if err := g.writeArrayOfTablesInit(buf, structName, val, 0); err != nil {
+						return err
+					}
+					buf.WriteString("\n")
+				} else {
+					goType := g.toGoType(value)
+					fmt.Fprintf(buf, "\t%s %s = ", varName, goType)
+					g.writeValue(buf, value)
+					buf.WriteString("\n")
+				}
+			} else {
+				goType := g.toGoType(value)
+				fmt.Fprintf(buf, "\t%s %s\n", varName, goType)
+			}
+		default:
+			// Generate simple variable
+			goType := g.toGoType(value)
+			fmt.Fprintf(buf, "\t%s %s = ", varName, goType)
+			g.writeValue(buf, value)
+			buf.WriteString("\n")
+		}
+	}
+
+	buf.WriteString(")\n")
+
+	return nil
+}
+
+// collectNestedStructs recursively collects all struct definitions needed for the
+// generated code. It traverses nested maps and arrays to discover all struct types
+// that must be defined.
+//
+// The function builds unique struct names by concatenating parent and child names
+// (e.g., "DatabaseConfig" -> "DatabaseCredentialsConfig" for nested credentials).
+// It handles:
+//   - Nested maps (inline tables) - suffixed with "Config"
+//   - Arrays of maps (array of tables) - suffixed with "Item"
+//
+// The structs map is populated with name->fields mapping, ensuring each struct type
+// is only processed once (deduplication via existence check).
+func (g *Generator) collectNestedStructs(structs map[string]map[string]any, name string, data map[string]any) {
+	if _, exists := structs[name]; exists {
+		return
+	}
+
+	structs[name] = data
+
+	for key, val := range data {
+		switch v := val.(type) {
+		case map[string]any:
+			nestedName := stripSuffix(name) + sx.PascalCase(key) + "Config"
+			g.collectNestedStructs(structs, nestedName, v)
+		case []any:
+			// Check if it's an array of maps
+			if len(v) > 0 {
+				if m, ok := v[0].(map[string]any); ok {
+					nestedName := stripSuffix(name) + sx.PascalCase(key) + "Item"
+					g.collectNestedStructs(structs, nestedName, m)
+				}
+			}
+		case []map[string]any:
+			if len(v) > 0 {
+				nestedName := stripSuffix(name) + sx.PascalCase(key) + "Item"
+				g.collectNestedStructs(structs, nestedName, v[0])
+			}
+		}
+	}
+}
+
+// generateStruct generates a struct type definition with properly typed fields.
+// Field names are converted to Go-idiomatic CamelCase, and field types are determined
+// based on the value types in the TOML data.
+//
+// For nested structures, the function constructs type names by prefixing the parent
+// struct name to maintain uniqueness (e.g., "DatabaseConfig" with a "server" field
+// becomes "DatabaseConfigServerConfig" type).
+//
+// Fields are sorted alphabetically for deterministic output.
+func (g *Generator) generateStruct(buf *bytes.Buffer, name string, fields map[string]any) error {
+	fmt.Fprintf(buf, "type %s struct {\n", name)
+
+	fieldNames := make([]string, 0, len(fields))
+	for k := range fields {
+		fieldNames = append(fieldNames, k)
+	}
+	sort.Strings(fieldNames)
+
+	for _, fieldName := range fieldNames {
+		value := fields[fieldName]
+		goFieldName := sx.PascalCase(fieldName)
+		goType := g.toGoType(value)
+
+		// Handle nested structs - prefix with parent struct name
+		if _, ok := value.(map[string]any); ok {
+			goType = stripSuffix(name) + sx.PascalCase(fieldName) + "Config"
+		} else if arr, ok := value.([]any); ok && len(arr) > 0 {
+			if _, isMap := arr[0].(map[string]any); isMap {
+				goType = "[]" + stripSuffix(name) + sx.PascalCase(fieldName) + "Item"
+			}
+		} else if arr, ok := value.([]map[string]any); ok && len(arr) > 0 {
+			goType = "[]" + stripSuffix(name) + sx.PascalCase(fieldName) + "Item"
+		}
+
+		fmt.Fprintf(buf, "\t%s %s\n", goFieldName, goType)
+	}
+
+	buf.WriteString("}")
+	return nil
+}
+
+// generateStructInit generates struct initialization code with proper indentation
+// and nested struct literals. This function recursively creates the initialization
+// syntax for complex nested structures.
+//
+// For nested maps, it generates inline struct literals with the appropriate type name.
+// For arrays of structs, it delegates to writeArrayOfStructs or handles simple arrays.
+// Simple values are written as literals using writeValue.
+//
+// The indent parameter controls the indentation level for proper formatting of nested
+// structures. Fields are sorted alphabetically for deterministic output.
+func (g *Generator) generateStructInit(buf *bytes.Buffer, parentStructName string, data map[string]any, indent int) error {
+	buf.WriteString("{\n")
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // deterministic output
+
+	indentStr := strings.Repeat("\t", indent+1)
+	for _, key := range keys {
+		value := data[key]
+		fieldName := sx.PascalCase(key)
+
+		buf.WriteString(indentStr)
+		fmt.Fprintf(buf, "%s: ", fieldName)
+
+		switch val := value.(type) {
+		case map[string]any:
+			structType := stripSuffix(parentStructName) + sx.PascalCase(key) + "Config"
+			buf.WriteString(structType)
+			if err := g.generateStructInit(buf, structType, val, indent+1); err != nil {
+				return err
+			}
+		case []any:
+			if len(val) > 0 {
+				if _, ok := val[0].(map[string]any); ok {
+					g.writeArrayOfStructs(buf, val, indent+1)
+				} else {
+					g.writeValueWithIndent(buf, value, indent+1)
+				}
+			} else {
+				g.writeValueWithIndent(buf, value, indent+1)
+			}
+		case []map[string]any:
+			g.writeArrayOfStructs(buf, val, indent+1)
+		default:
+			g.writeValueWithIndent(buf, value, indent+1)
+		}
+
+		buf.WriteString(",\n")
+	}
+
+	buf.WriteString(strings.Repeat("\t", indent))
+	buf.WriteString("}")
+	return nil
+}
+
+// writeArrayOfTablesInit writes an array initialization for top-level tables,
+// specifically handling TOML's [[array.of.tables]] syntax. This generates code
+// for slices of structs where each element is initialized with its fields.
+//
+// The function handles both []any and []map[string]any types from the TOML parser,
+// generating struct literals with proper indentation. Each element is initialized
+// by calling generateStructInit for the nested structure.
+//
+// The type name is omitted from each element to comply with gofmt -s simplification rules.
+//
+// Example output:
+//
+//	[]ServerItem{
+//	    {Host: "localhost", Port: 8080},
+//	    {Host: "example.com", Port: 443},
+//	}
+func (g *Generator) writeArrayOfTablesInit(buf *bytes.Buffer, structName string, arr any, indent int) error {
+	buf.WriteString("{\n")
+	indentStr := strings.Repeat("\t", indent+1)
+
+	switch val := arr.(type) {
+	case []any:
+		for _, item := range val {
+			if m, ok := item.(map[string]any); ok {
+				buf.WriteString(indentStr)
+				// Omit type name for gofmt -s compliance
+				if err := g.generateStructInit(buf, structName, m, indent+1); err != nil {
+					return err
+				}
+				buf.WriteString(",\n")
+			}
+		}
+	case []map[string]any:
+		for _, m := range val {
+			buf.WriteString(indentStr)
+			// Omit type name for gofmt -s compliance
+			if err := g.generateStructInit(buf, structName, m, indent+1); err != nil {
+				return err
+			}
+			buf.WriteString(",\n")
+		}
+	}
+
+	buf.WriteString(strings.Repeat("\t", indent))
+	buf.WriteString("}")
+	return nil
+}
+
+// writeArrayOfStructs writes an array of struct initializations using compact inline
+// syntax. Unlike writeArrayOfTablesInit, this generates inline struct literals without
+// the type name prefix, making it more suitable for deeply nested structures.
+//
+// Example output:
+//
+//	{
+//	    {Host: "localhost", Port: 8080},
+//	    {Host: "example.com", Port: 443},
+//	}
+//
+// Fields within each struct are written in sorted order and separated by commas on a
+// single line. This function handles both []any and []map[string]any input types.
+func (g *Generator) writeArrayOfStructs(buf *bytes.Buffer, arr any, indent int) {
+	buf.WriteString("{\n")
+	indentStr := strings.Repeat("\t", indent+1)
+
+	switch val := arr.(type) {
+	case []any:
+		for _, item := range val {
+			if m, ok := item.(map[string]any); ok {
+				buf.WriteString(indentStr)
+				buf.WriteString("{")
+				// Inline struct fields
+				keys := make([]string, 0, len(m))
+				for k := range m {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+
+				for i, k := range keys {
+					if i > 0 {
+						buf.WriteString(", ")
+					}
+					buf.WriteString(sx.PascalCase(k))
+					buf.WriteString(": ")
+					g.writeValue(buf, m[k])
+				}
+				buf.WriteString("},\n")
+			}
+		}
+	case []map[string]any:
+		for _, m := range val {
+			buf.WriteString(indentStr)
+			buf.WriteString("{")
+			// Inline struct fields
+			keys := make([]string, 0, len(m))
+			for k := range m {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+
+			for i, k := range keys {
+				if i > 0 {
+					buf.WriteString(", ")
+				}
+				buf.WriteString(sx.PascalCase(k))
+				buf.WriteString(": ")
+				g.writeValue(buf, m[k])
+			}
+			buf.WriteString("},\n")
+		}
+	}
+
+	buf.WriteString(strings.Repeat("\t", indent))
+	buf.WriteString("}")
+}

@@ -6,6 +6,8 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -22,12 +24,58 @@ var (
 	outputFile  string
 	packageName string
 	noEnv       bool
+	maxFileSize string
 )
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
+}
+
+// parseFileSize parses a human-readable file size string like "10MB", "1GB", "512KB"
+// into bytes. Returns 0 and error if parsing fails.
+func parseFileSize(sizeStr string) (int64, error) {
+	if sizeStr == "" {
+		return 0, nil
+	}
+
+	sizeStr = strings.TrimSpace(strings.ToUpper(sizeStr))
+
+	// Define multipliers in order from longest to shortest to avoid prefix issues
+	multipliers := []struct {
+		suffix     string
+		multiplier int64
+	}{
+		{"TB", 1024 * 1024 * 1024 * 1024},
+		{"GB", 1024 * 1024 * 1024},
+		{"MB", 1024 * 1024},
+		{"KB", 1024},
+		{"B", 1},
+	}
+
+	// Try to parse with suffix (check longest first)
+	for _, m := range multipliers {
+		if strings.HasSuffix(sizeStr, m.suffix) {
+			numStr := strings.TrimSuffix(sizeStr, m.suffix)
+			numStr = strings.TrimSpace(numStr)
+
+			num, err := strconv.ParseInt(numStr, 10, 64)
+			if err != nil {
+				return 0, fmt.Errorf("invalid size format: %s", sizeStr)
+			}
+
+			return num * m.multiplier, nil
+		}
+	}
+
+	// Try to parse as plain number (bytes)
+	num, err := strconv.ParseInt(sizeStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid size format: %s", sizeStr)
+	}
+
+	return num, nil
 }
 
 var rootCmd = &cobra.Command{
@@ -56,12 +104,19 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("--out flag is required")
 		}
 
+		// Parse max file size
+		maxFileSizeBytes, err := parseFileSize(maxFileSize)
+		if err != nil {
+			return fmt.Errorf("invalid --max-file-size: %w", err)
+		}
+
 		// Use the public API
 		opts := &cfgx.GenerateOptions{
 			InputFile:   inputFile,
 			OutputFile:  outputFile,
 			PackageName: packageName,
 			EnableEnv:   !noEnv,
+			MaxFileSize: maxFileSizeBytes,
 		}
 
 		if err := cfgx.GenerateFromFile(opts); err != nil {
@@ -99,6 +154,7 @@ func init() {
 	generateCmd.Flags().StringVarP(&outputFile, "out", "o", "", "output Go file (required)")
 	generateCmd.Flags().StringVarP(&packageName, "pkg", "p", "", "package name (default: inferred from output path or 'config')")
 	generateCmd.Flags().BoolVar(&noEnv, "no-env", false, "disable environment variable overrides")
+	generateCmd.Flags().StringVar(&maxFileSize, "max-file-size", "1MB", "maximum file size for file: references (e.g., 10MB, 1GB, 512KB)")
 
 	generateCmd.MarkFlagRequired("out")
 

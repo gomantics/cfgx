@@ -90,10 +90,12 @@ cfgx generate --in worker.toml --out config/worker.go
 cfgx generate [flags]
 
 Flags:
-  -i, --in string      Input TOML file (default "config.toml")
-  -o, --out string     Output Go file (required)
-  -p, --pkg string     Package name (inferred from output path)
-      --no-env         Disable environment variable overrides
+  -i, --in string          Input TOML file (default "config.toml")
+  -o, --out string         Output Go file (required)
+  -p, --pkg string         Package name (inferred from output path)
+      --no-env             Disable environment variable overrides
+      --max-file-size      Maximum file size for file: references (default "1MB")
+                           Supports: KB, MB, GB (e.g., "5MB", "1GB", "512KB")
 ```
 
 ## Features
@@ -167,10 +169,68 @@ The generated code will contain the overridden values. Useful for CI/CD pipeline
 
 Use `--no-env` to disable this feature.
 
+### File Embedding
+
+Embed file contents directly into your generated code using the `file:` prefix:
+
+```toml
+[server]
+addr = ":8080"
+tls_cert = "file:certs/server.crt"
+tls_key = "file:certs/server.key"
+
+[app]
+logo = "file:assets/logo.png"
+sql_schema = "file:migrations/schema.sql"
+```
+
+Generates:
+
+```go
+type ServerConfig struct {
+    Addr    string
+    TlsCert []byte  // Embedded certificate bytes
+    TlsKey  []byte  // Embedded key bytes
+}
+
+var Server = ServerConfig{
+    Addr: ":8080",
+    TlsCert: []byte{
+        0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x42, 0x45, 0x47, 0x49, 0x4e, 0x20, 0x43,
+        // ... actual cert bytes ...
+    },
+    TlsKey: []byte{ /* ... key bytes ... */ },
+}
+```
+
+**Key features:**
+
+- **Paths are relative** to the TOML file location
+- **Files are read at generation time** - no runtime I/O
+- **Self-contained binaries** - no need to distribute separate files
+- **Size limits** - defaults to 1MB, configurable via `--max-file-size`
+- **Any file type** - text, json, binary, certificates, images, etc.
+
+**Example usage:**
+
+```bash
+cfgx generate --in config.toml --out config/config.go --max-file-size 5MB
+```
+
+**Use cases:**
+
+- TLS certificates and keys
+- SQL migration schemas
+- Template files
+- Small assets (logos, icons)
+- Configuration snippets
+- Test fixtures
+
 ## Supported Types
 
 - **Primitives:** `string`, `int64`, `float64`, `bool`
 - **Duration:** `time.Duration` (auto-detected from Go duration strings: `"30s"`, `"5m"`, `"2h30m"`)
+- **File content:** `[]byte` (use `"file:path/to/file"` prefix)
 - **Arrays:** Arrays of any supported type
 - **Nested tables:** Becomes nested structs
 - **Array of tables:** `[]StructType`

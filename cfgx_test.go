@@ -162,3 +162,109 @@ metrics_enabled = true
 		require.Contains(t, outputStr, expected, "expected variable declaration not found: %s", expected)
 	}
 }
+
+func TestGenerateFromFile_WithFileEmbedding(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "config.toml")
+	outputFile := filepath.Join(tmpDir, "generated/config.go")
+
+	filesDir := filepath.Join(tmpDir, "data")
+	err := os.MkdirAll(filesDir, 0755)
+	require.NoError(t, err)
+
+	testContent := []byte("Hello from embedded file!\nLine 2")
+	testFile := filepath.Join(filesDir, "test.txt")
+	err = os.WriteFile(testFile, testContent, 0644)
+	require.NoError(t, err)
+
+	tomlData := []byte(`
+[app]
+name = "test"
+content = "file:data/test.txt"
+
+[server]
+addr = ":8080"
+`)
+
+	err = os.WriteFile(inputFile, tomlData, 0644)
+	require.NoError(t, err)
+
+	opts := &GenerateOptions{
+		InputFile:   inputFile,
+		OutputFile:  outputFile,
+		PackageName: "config",
+		EnableEnv:   false,
+		MaxFileSize: 10 * 1024 * 1024,
+	}
+
+	err = GenerateFromFile(opts)
+	require.NoError(t, err, "GenerateFromFile() should not error")
+
+	output, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	require.Contains(t, outputStr, "Content []byte", "should have []byte field")
+	require.Contains(t, outputStr, "0x48", "should contain 'H' (0x48)")
+	require.Contains(t, outputStr, "0x65", "should contain 'e' (0x65)")
+	require.Contains(t, outputStr, "[]byte{", "should have byte array literal")
+
+	cmd := exec.Command("go", "build", outputFile)
+	cmd.Dir = tmpDir
+	cmdOutput, err := cmd.CombinedOutput()
+	require.NoError(t, err, "generated code does not compile: %s", cmdOutput)
+}
+
+func TestGenerateFromFile_FileNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "config.toml")
+	outputFile := filepath.Join(tmpDir, "config.go")
+
+	// Create TOML with reference to non-existent file
+	tomlData := []byte(`
+[app]
+content = "file:nonexistent.txt"
+`)
+
+	err := os.WriteFile(inputFile, tomlData, 0644)
+	require.NoError(t, err)
+
+	opts := &GenerateOptions{
+		InputFile:  inputFile,
+		OutputFile: outputFile,
+	}
+
+	err = GenerateFromFile(opts)
+	require.Error(t, err, "should error on non-existent file")
+	require.Contains(t, err.Error(), "file not found", "error should mention file not found")
+}
+
+func TestGenerateFromFile_FileSizeExceeded(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "config.toml")
+	outputFile := filepath.Join(tmpDir, "config.go")
+
+	// Create a test file
+	largeFile := filepath.Join(tmpDir, "large.txt")
+	err := os.WriteFile(largeFile, []byte("This file is too large for the limit"), 0644)
+	require.NoError(t, err)
+
+	tomlData := []byte(`
+[app]
+content = "file:large.txt"
+`)
+
+	err = os.WriteFile(inputFile, tomlData, 0644)
+	require.NoError(t, err)
+
+	opts := &GenerateOptions{
+		InputFile:   inputFile,
+		OutputFile:  outputFile,
+		MaxFileSize: 10, // Very small limit
+	}
+
+	err = GenerateFromFile(opts)
+	require.Error(t, err, "should error on file size exceeded")
+	require.Contains(t, err.Error(), "exceeds max size", "error should mention size limit")
+}
