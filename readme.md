@@ -94,7 +94,7 @@ Flags:
   -o, --out string         Output Go file (required)
   -p, --pkg string         Package name (inferred from output path)
       --no-env             Disable environment variable overrides
-      --max-file-size      Maximum file size for file: references (default "10MB")
+      --max-file-size      Maximum file size for file: references (default "1MB")
                            Supports: KB, MB, GB (e.g., "5MB", "1GB", "512KB")
 ```
 

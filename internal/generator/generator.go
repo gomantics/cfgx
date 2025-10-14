@@ -54,7 +54,7 @@ func New(opts ...Option) *Generator {
 	g := &Generator{
 		packageName: "config",
 		envOverride: true,
-		maxFileSize: 10 * 1024 * 1024, // 10MB default
+		maxFileSize: 1024 * 1024, // 1MB default
 	}
 	for _, opt := range opts {
 		opt(g)

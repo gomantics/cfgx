@@ -175,7 +175,7 @@ func Generate(tomlData []byte, packageName string, enableEnv bool) ([]byte, erro
 //   - packageName: The Go package name for the generated code
 //   - enableEnv: Whether to enable environment variable override markers in generated code
 //   - inputDir: Directory to resolve file: references from (empty string to disable)
-//   - maxFileSize: Maximum file size in bytes for file: references (0 for default 10MB)
+//   - maxFileSize: Maximum file size in bytes for file: references (0 for default 1MB)
 //
 // Returns the generated Go code as bytes, or an error if generation fails.
 func GenerateWithOptions(tomlData []byte, packageName string, enableEnv bool, inputDir string, maxFileSize int64) ([]byte, error) {
