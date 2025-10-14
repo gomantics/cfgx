@@ -1,0 +1,5 @@
+Hello, World!
+This is a small test file.
+It contains just a few lines of text.
+Perfect for testing file embedding.
+

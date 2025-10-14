@@ -1,7 +1,7 @@
 // Package cfgx generates type-safe Go code from TOML configuration files.
 //
 // This package provides a clean API for generating strongly-typed configuration code
-// from TOML files, with optional environment variable override support.
+// from TOML files, with optional environment variable override support and file embedding.
 //
 // Example usage:
 //
@@ -15,6 +15,22 @@
 //	if err := cfgx.GenerateFromFile(opts); err != nil {
 //		log.Fatal(err)
 //	}
+//
+//	// With file embedding
+//	opts := &cfgx.GenerateOptions{
+//		InputFile:   "config.toml",
+//		OutputFile:  "config/config.go",
+//		PackageName: "config",
+//		MaxFileSize: 5 * 1024 * 1024, // 5MB limit
+//	}
+//	if err := cfgx.GenerateFromFile(opts); err != nil {
+//		log.Fatal(err)
+//	}
+//
+//	// TOML with file references:
+//	// [server]
+//	// tls_cert = "file:certs/server.crt"
+//	// This generates a []byte field with embedded file contents
 //
 //	// Programmatic usage
 //	tomlData := []byte(`[server]
@@ -52,6 +68,10 @@ type GenerateOptions struct {
 
 	// EnableEnv enables environment variable override support
 	EnableEnv bool
+
+	// MaxFileSize is the maximum size in bytes for files referenced with "file:" prefix.
+	// If zero, defaults to 1MB (1048576 bytes).
+	MaxFileSize int64
 }
 
 // GenerateFromFile generates Go code from a TOML file and writes it to the output file.
@@ -99,8 +119,17 @@ func GenerateFromFile(opts *GenerateOptions) error {
 		packageName = pkgutil.InferName(opts.OutputFile)
 	}
 
+	// Extract input directory for resolving file: references
+	inputDir := filepath.Dir(opts.InputFile)
+
+	// Set default max file size if not specified
+	maxFileSize := opts.MaxFileSize
+	if maxFileSize == 0 {
+		maxFileSize = 1024 * 1024 // 1MB default
+	}
+
 	// Generate code
-	generated, err := Generate(data, packageName, opts.EnableEnv)
+	generated, err := GenerateWithOptions(data, packageName, opts.EnableEnv, inputDir, maxFileSize)
 	if err != nil {
 		return fmt.Errorf("failed to generate code: %w", err)
 	}
@@ -130,14 +159,39 @@ func GenerateFromFile(opts *GenerateOptions) error {
 //   - enableEnv: Whether to enable environment variable override markers in generated code
 //
 // Returns the generated Go code as bytes, or an error if generation fails.
+//
+// Note: This function does not support file: references since no input directory is provided.
+// Use GenerateWithOptions for full file embedding support.
 func Generate(tomlData []byte, packageName string, enableEnv bool) ([]byte, error) {
+	return GenerateWithOptions(tomlData, packageName, enableEnv, "", 1024*1024)
+}
+
+// GenerateWithOptions generates Go code from TOML data with full options support.
+// This is useful for programmatic usage where you have the TOML data in memory
+// and need to control file embedding behavior.
+//
+// Parameters:
+//   - tomlData: The TOML configuration data as bytes
+//   - packageName: The Go package name for the generated code
+//   - enableEnv: Whether to enable environment variable override markers in generated code
+//   - inputDir: Directory to resolve file: references from (empty string to disable)
+//   - maxFileSize: Maximum file size in bytes for file: references (0 for default 10MB)
+//
+// Returns the generated Go code as bytes, or an error if generation fails.
+func GenerateWithOptions(tomlData []byte, packageName string, enableEnv bool, inputDir string, maxFileSize int64) ([]byte, error) {
 	if packageName == "" {
 		packageName = "config"
+	}
+
+	if maxFileSize == 0 {
+		maxFileSize = 1024 * 1024 // 1MB default
 	}
 
 	gen := generator.New(
 		generator.WithPackageName(packageName),
 		generator.WithEnvOverride(enableEnv),
+		generator.WithInputDir(inputDir),
+		generator.WithMaxFileSize(maxFileSize),
 	)
 
 	return gen.Generate(tomlData)
