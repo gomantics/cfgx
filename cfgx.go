@@ -21,7 +21,7 @@
 //		InputFile:   "config.toml",
 //		OutputFile:  "config/config.go",
 //		PackageName: "config",
-//		MaxFileSize: 5 * 1024 * 1024, // 5MB limit
+//		MaxFileSize: 5 * cfgx.DefaultMaxFileSize, // 5MB limit
 //	}
 //	if err := cfgx.GenerateFromFile(opts); err != nil {
 //		log.Fatal(err)
@@ -54,6 +54,9 @@ import (
 	"github.com/gomantics/cfgx/internal/pkgutil"
 )
 
+// DefaultMaxFileSize is the default maximum file size (1 MB) for files referenced with "file:" prefix.
+const DefaultMaxFileSize = 1024 * 1024 // 1 MB
+
 // GenerateOptions contains all options for generating configuration code.
 type GenerateOptions struct {
 	// InputFile is the path to the input TOML file
@@ -70,7 +73,7 @@ type GenerateOptions struct {
 	EnableEnv bool
 
 	// MaxFileSize is the maximum size in bytes for files referenced with "file:" prefix.
-	// If zero, defaults to 1MB (1048576 bytes).
+	// If zero, defaults to DefaultMaxFileSize (1 MB).
 	MaxFileSize int64
 }
 
@@ -125,7 +128,7 @@ func GenerateFromFile(opts *GenerateOptions) error {
 	// Set default max file size if not specified
 	maxFileSize := opts.MaxFileSize
 	if maxFileSize == 0 {
-		maxFileSize = 1024 * 1024 // 1MB default
+		maxFileSize = DefaultMaxFileSize
 	}
 
 	// Generate code
@@ -163,7 +166,7 @@ func GenerateFromFile(opts *GenerateOptions) error {
 // Note: This function does not support file: references since no input directory is provided.
 // Use GenerateWithOptions for full file embedding support.
 func Generate(tomlData []byte, packageName string, enableEnv bool) ([]byte, error) {
-	return GenerateWithOptions(tomlData, packageName, enableEnv, "", 1024*1024)
+	return GenerateWithOptions(tomlData, packageName, enableEnv, "", DefaultMaxFileSize)
 }
 
 // GenerateWithOptions generates Go code from TOML data with full options support.
@@ -184,7 +187,7 @@ func GenerateWithOptions(tomlData []byte, packageName string, enableEnv bool, in
 	}
 
 	if maxFileSize == 0 {
-		maxFileSize = 1024 * 1024 // 1MB default
+		maxFileSize = DefaultMaxFileSize
 	}
 
 	gen := generator.New(
