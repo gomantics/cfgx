@@ -44,3 +44,7 @@ coverage:
 	go test -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
+
+# Generate example code
+generate-example:
+	go generate ./example

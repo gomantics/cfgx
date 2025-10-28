@@ -75,6 +75,12 @@ type GenerateOptions struct {
 	// MaxFileSize is the maximum size in bytes for files referenced with "file:" prefix.
 	// If zero, defaults to DefaultMaxFileSize (1 MB).
 	MaxFileSize int64
+
+	// Mode specifies the generation mode:
+	//   "static" - values baked at build time (default)
+	//   "getter" - generate getter methods with runtime env var overrides
+	// If empty, defaults to "static".
+	Mode string
 }
 
 // GenerateFromFile generates Go code from a TOML file and writes it to the output file.
@@ -131,8 +137,14 @@ func GenerateFromFile(opts *GenerateOptions) error {
 		maxFileSize = DefaultMaxFileSize
 	}
 
+	// Set default mode if not specified
+	mode := opts.Mode
+	if mode == "" {
+		mode = "static"
+	}
+
 	// Generate code
-	generated, err := GenerateWithOptions(data, packageName, opts.EnableEnv, inputDir, maxFileSize)
+	generated, err := GenerateWithOptions(data, packageName, opts.EnableEnv, inputDir, maxFileSize, mode)
 	if err != nil {
 		return fmt.Errorf("failed to generate code: %w", err)
 	}
@@ -166,7 +178,7 @@ func GenerateFromFile(opts *GenerateOptions) error {
 // Note: This function does not support file: references since no input directory is provided.
 // Use GenerateWithOptions for full file embedding support.
 func Generate(tomlData []byte, packageName string, enableEnv bool) ([]byte, error) {
-	return GenerateWithOptions(tomlData, packageName, enableEnv, "", DefaultMaxFileSize)
+	return GenerateWithOptions(tomlData, packageName, enableEnv, "", DefaultMaxFileSize, "static")
 }
 
 // GenerateWithOptions generates Go code from TOML data with full options support.
@@ -179,9 +191,10 @@ func Generate(tomlData []byte, packageName string, enableEnv bool) ([]byte, erro
 //   - enableEnv: Whether to enable environment variable override markers in generated code
 //   - inputDir: Directory to resolve file: references from (empty string to disable)
 //   - maxFileSize: Maximum file size in bytes for file: references (0 for default 1MB)
+//   - mode: Generation mode ("static" or "getter")
 //
 // Returns the generated Go code as bytes, or an error if generation fails.
-func GenerateWithOptions(tomlData []byte, packageName string, enableEnv bool, inputDir string, maxFileSize int64) ([]byte, error) {
+func GenerateWithOptions(tomlData []byte, packageName string, enableEnv bool, inputDir string, maxFileSize int64, mode string) ([]byte, error) {
 	if packageName == "" {
 		packageName = "config"
 	}
@@ -190,11 +203,16 @@ func GenerateWithOptions(tomlData []byte, packageName string, enableEnv bool, in
 		maxFileSize = DefaultMaxFileSize
 	}
 
+	if mode == "" {
+		mode = "static"
+	}
+
 	gen := generator.New(
 		generator.WithPackageName(packageName),
 		generator.WithEnvOverride(enableEnv),
 		generator.WithInputDir(inputDir),
 		generator.WithMaxFileSize(maxFileSize),
+		generator.WithMode(mode),
 	)
 
 	return gen.Generate(tomlData)

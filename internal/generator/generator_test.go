@@ -137,3 +137,210 @@ value = 3
 
 	require.True(t, alphaPos < betaPos && betaPos < zuluPos, "variables not sorted alphabetically")
 }
+
+func TestGenerator_GetterMode(t *testing.T) {
+	data := []byte(`
+[server]
+addr = ":8080"
+timeout = "30s"
+port = 8080
+debug = true
+
+[database]
+max_conns = 25
+`)
+
+	gen := New(WithPackageName("config"), WithMode("getter"))
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error in getter mode")
+
+	outputStr := string(output)
+
+	// Check package and imports
+	require.Contains(t, outputStr, "package config", "output missing package declaration")
+	require.Contains(t, outputStr, `import (`, "output missing imports")
+	require.Contains(t, outputStr, `"os"`, "output missing os import")
+	require.Contains(t, outputStr, `"strconv"`, "output missing strconv import")
+	require.Contains(t, outputStr, `"time"`, "output missing time import")
+
+	// Check empty structs
+	require.Contains(t, outputStr, "type ServerConfig struct{}", "output missing empty ServerConfig struct")
+	require.Contains(t, outputStr, "type DatabaseConfig struct{}", "output missing empty DatabaseConfig struct")
+
+	// Check getter methods exist
+	require.Contains(t, outputStr, "func (ServerConfig) Addr() string", "output missing Addr getter")
+	require.Contains(t, outputStr, "func (ServerConfig) Timeout() time.Duration", "output missing Timeout getter")
+	require.Contains(t, outputStr, "func (ServerConfig) Port() int64", "output missing Port getter")
+	require.Contains(t, outputStr, "func (ServerConfig) Debug() bool", "output missing Debug getter")
+	require.Contains(t, outputStr, "func (DatabaseConfig) MaxConns() int64", "output missing MaxConns getter")
+
+	// Check env var logic
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_ADDR")`, "output missing env var check for addr")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TIMEOUT")`, "output missing env var check for timeout")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_DATABASE_MAX_CONNS")`, "output missing env var check for max_conns")
+
+	// Check type conversions
+	require.Contains(t, outputStr, "strconv.ParseInt", "output missing int parsing")
+	require.Contains(t, outputStr, "strconv.ParseBool", "output missing bool parsing")
+	require.Contains(t, outputStr, "time.ParseDuration", "output missing duration parsing")
+
+	// Check default value returns
+	require.Contains(t, outputStr, `return ":8080"`, "output missing default addr")
+	require.Contains(t, outputStr, `return 30 * time.Second`, "output missing default timeout")
+	require.Contains(t, outputStr, `return 8080`, "output missing default port")
+	require.Contains(t, outputStr, `return true`, "output missing default debug")
+	require.Contains(t, outputStr, `return 25`, "output missing default max_conns")
+
+	// Check var declarations (allow for variable spacing due to gofmt alignment)
+	require.Contains(t, outputStr, "Server", "output missing Server var")
+	require.Contains(t, outputStr, "ServerConfig", "output missing ServerConfig type")
+	require.Contains(t, outputStr, "Database", "output missing Database var")
+	require.Contains(t, outputStr, "DatabaseConfig", "output missing DatabaseConfig type")
+}
+
+func TestGenerator_GetterMode_NestedStructs(t *testing.T) {
+	data := []byte(`
+[database]
+dsn = "postgres://localhost/db"
+
+[database.pool]
+max_size = 10
+min_size = 2
+`)
+
+	gen := New(WithPackageName("config"), WithMode("getter"))
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error")
+
+	outputStr := string(output)
+
+	// Check nested structs
+	require.Contains(t, outputStr, "type DatabaseConfig struct{}", "output missing DatabaseConfig")
+	require.Contains(t, outputStr, "type DatabasePoolConfig struct{}", "output missing DatabasePoolConfig")
+
+	// Check nested getter returns nested struct
+	require.Contains(t, outputStr, "func (DatabaseConfig) Pool() DatabasePoolConfig", "output missing Pool getter")
+	require.Contains(t, outputStr, "return DatabasePoolConfig{}", "output missing DatabasePoolConfig return")
+
+	// Check nested struct methods with correct env var names
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_DATABASE_POOL_MAX_SIZE")`, "output missing nested env var")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_DATABASE_POOL_MIN_SIZE")`, "output missing nested env var")
+	require.Contains(t, outputStr, "func (DatabasePoolConfig) MaxSize() int64", "output missing nested MaxSize getter")
+	require.Contains(t, outputStr, "func (DatabasePoolConfig) MinSize() int64", "output missing nested MinSize getter")
+}
+
+func TestGenerator_GetterMode_Arrays(t *testing.T) {
+	data := []byte(`
+[service]
+hosts = ["localhost", "example.com"]
+ports = [8080, 8081]
+`)
+
+	gen := New(WithPackageName("config"), WithMode("getter"))
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error")
+
+	outputStr := string(output)
+
+	// Check array getters with limitation comment
+	require.Contains(t, outputStr, "func (ServiceConfig) Hosts() []string", "output missing Hosts getter")
+	require.Contains(t, outputStr, "func (ServiceConfig) Ports() []int64", "output missing Ports getter")
+	require.Contains(t, outputStr, "// Array overrides not supported via env vars", "output missing array limitation comment")
+	require.Contains(t, outputStr, `return []string{"localhost", "example.com"}`, "output missing hosts default")
+	require.Contains(t, outputStr, "return []int64{8080, 8081}", "output missing ports default")
+}
+
+func TestGenerator_GetterMode_NoDuplicateMethods(t *testing.T) {
+	data := []byte(`
+[cache]
+enabled = true
+
+[cache.redis]
+addr = "localhost:6379"
+db = 0
+`)
+
+	gen := New(WithPackageName("config"), WithMode("getter"))
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error")
+
+	outputStr := string(output)
+
+	// Check that Redis methods are only generated once
+	addrCount := strings.Count(outputStr, "func (CacheRedisConfig) Addr() string")
+	require.Equal(t, 1, addrCount, "Addr method should be generated exactly once")
+
+	dbCount := strings.Count(outputStr, "func (CacheRedisConfig) Db() int64")
+	require.Equal(t, 1, dbCount, "Db method should be generated exactly once")
+}
+
+func TestGenerator_EnvVarName(t *testing.T) {
+	gen := New()
+
+	tests := []struct {
+		structName string
+		fieldName  string
+		expected   string
+	}{
+		{"ServerConfig", "addr", "CONFIG_SERVER_ADDR"},
+		{"DatabaseConfig", "max_conns", "CONFIG_DATABASE_MAX_CONNS"},
+		{"AppLoggingConfig", "level", "CONFIG_APP_LOGGING_LEVEL"},
+		{"CacheRedisConfig", "addr", "CONFIG_CACHE_REDIS_ADDR"},
+	}
+
+	for _, tt := range tests {
+		result := gen.envVarName(tt.structName, tt.fieldName)
+		require.Equal(t, tt.expected, result, "envVarName(%s, %s) = %s, want %s", tt.structName, tt.fieldName, result, tt.expected)
+	}
+}
+
+func TestGenerator_StaticModeDefault(t *testing.T) {
+	data := []byte(`
+[server]
+addr = ":8080"
+`)
+
+	// Test without WithMode (should default to static)
+	gen := New(WithPackageName("config"))
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error")
+
+	outputStr := string(output)
+
+	// Should generate fields, not methods
+	require.Contains(t, outputStr, "type ServerConfig struct {", "output should have struct with fields")
+	require.Contains(t, outputStr, "Addr string", "output should have Addr field")
+	require.NotContains(t, outputStr, "func (ServerConfig) Addr() string", "output should not have getter methods")
+	require.NotContains(t, outputStr, "os.Getenv", "static mode should not use env vars")
+}
+
+func TestGenerator_GetterMode_FileReferences(t *testing.T) {
+	data := []byte(`
+[server]
+tls_cert = "file:files/cert.txt"
+tls_key = "file:files/small.txt"
+`)
+
+	gen := New(
+		WithPackageName("config"),
+		WithMode("getter"),
+		WithInputDir("../../testdata"),
+	)
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error")
+
+	outputStr := string(output)
+
+	// Check file loading logic exists
+	require.Contains(t, outputStr, "func (ServerConfig) TlsCert() []byte", "output missing TlsCert getter")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TLS_CERT")`, "output missing file path env var check")
+	require.Contains(t, outputStr, "os.ReadFile(path)", "output missing file read")
+	require.Contains(t, outputStr, "return data", "output missing return data")
+
+	// Check it still has embedded fallback
+	require.Contains(t, outputStr, "return []byte{", "output missing embedded fallback bytes")
+
+	// Check same for key
+	require.Contains(t, outputStr, "func (ServerConfig) TlsKey() []byte", "output missing TlsKey getter")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TLS_KEY")`, "output missing file path env var check for key")
+}

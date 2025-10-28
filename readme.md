@@ -93,10 +93,139 @@ Flags:
   -i, --in string          Input TOML file (default "config.toml")
   -o, --out string         Output Go file (required)
   -p, --pkg string         Package name (inferred from output path)
-      --no-env             Disable environment variable overrides
+      --mode string        Generation mode: 'static' or 'getter' (default "static")
+      --no-env             Disable environment variable overrides (static mode only)
       --max-file-size      Maximum file size for file: references (default "1MB")
                            Supports: KB, MB, GB (e.g., "5MB", "1GB", "512KB")
 ```
+
+## Modes
+
+`cfgx` supports two generation modes, chosen via the `--mode` flag:
+
+### Static Mode (default)
+
+Values are baked into the binary at build time. Best for:
+
+- Internal tools
+- Single-environment deployments
+- Maximum performance (zero runtime overhead)
+
+```bash
+cfgx generate --in config.toml --out config/config.go --mode static
+# or just omit --mode (static is default)
+cfgx generate --in config.toml --out config/config.go
+```
+
+### Getter Mode
+
+Generates getter methods that check environment variables at runtime, falling back to defaults from TOML. Best for:
+
+- Open source projects
+- Docker/container deployments
+- Multi-environment apps
+- 12-factor apps
+
+```bash
+cfgx generate --in config.toml --out config/config.go --mode getter
+```
+
+**Input:**
+
+```toml
+[server]
+addr = ":8080"
+timeout = "30s"
+debug = true
+```
+
+**Generated (getter mode):**
+
+```go
+type ServerConfig struct{}
+
+func (ServerConfig) Addr() string {
+    if v := os.Getenv("CONFIG_SERVER_ADDR"); v != "" {
+        return v
+    }
+    return ":8080"
+}
+
+func (ServerConfig) Timeout() time.Duration {
+    if v := os.Getenv("CONFIG_SERVER_TIMEOUT"); v != "" {
+        if d, err := time.ParseDuration(v); err == nil {
+            return d
+        }
+    }
+    return 30 * time.Second
+}
+
+func (ServerConfig) Debug() bool {
+    if v := os.Getenv("CONFIG_SERVER_DEBUG"); v != "" {
+        if b, err := strconv.ParseBool(v); err == nil {
+            return b
+        }
+    }
+    return true
+}
+
+var Server ServerConfig
+```
+
+**Usage:**
+
+```go
+// In your application
+http.ListenAndServe(config.Server.Addr(), handler)
+
+// Override at runtime
+// $ CONFIG_SERVER_ADDR=":3000" ./myapp
+```
+
+**Environment variable format:** `CONFIG_SECTION_KEY`
+
+- Nested: `CONFIG_DATABASE_POOL_MAX_SIZE`
+- Type-safe parsing with silent fallback to defaults
+
+**File overrides:**
+
+File references can be overridden at runtime by passing file paths via env vars:
+
+```bash
+# Use embedded file (from build time)
+./myapp
+
+# Override with production certificate
+CONFIG_SERVER_TLS_CERT=/etc/ssl/certs/prod.crt ./myapp
+```
+
+**Kubernetes example:**
+
+```yaml
+env:
+  - name: CONFIG_SERVER_TLS_CERT
+    value: /etc/tls/tls.crt
+  - name: CONFIG_SERVER_TLS_KEY
+    value: /etc/tls/tls.key
+volumeMounts:
+  - name: tls-secret
+    mountPath: /etc/tls
+    readOnly: true
+volumes:
+  - name: tls-secret
+    secret:
+      secretName: my-tls-secret
+```
+
+**Behavior:**
+
+- If env var is set to a file path and file is readable, use that file
+- If file doesn't exist or can't be read, silently fall back to embedded bytes
+- Embedded bytes from build time are always available as fallback
+
+**Limitations in getter mode:**
+
+- Arrays cannot be overridden via env vars (always use defaults)
 
 ## Features
 
@@ -237,24 +366,53 @@ cfgx generate --in config.toml --out config/config.go --max-file-size 5MB
 
 ## Multi-Environment Config
 
-### Approach 1: Separate files per environment
+### Approach 1: Getter Mode (Recommended for Docker/OSS)
 
-```bash
-# Development
-cfgx generate --in config.dev.toml --out config/config.go
-
-# Production
-cfgx generate --in config.prod.toml --out config/config.go
-```
-
-### Approach 2: CI/CD with environment variables
+Use `--mode getter` to generate runtime-configurable code:
 
 ```dockerfile
 FROM golang:1.25.1 as builder
 WORKDIR /app
 COPY . .
 RUN go install github.com/gomantics/cfgx/cmd/cfgx@latest
-RUN cfgx generate --in config.toml --out config/config.go
+RUN cfgx generate --in config.toml --out config/config.go --mode getter
+RUN go build -o app
+
+FROM alpine
+COPY --from=builder /app/app /app
+CMD ["/app"]
+```
+
+Users can now configure via environment variables:
+
+```bash
+docker run -e CONFIG_SERVER_ADDR=":3000" \
+           -e CONFIG_DATABASE_DSN="postgres://mydb/app" \
+           -e CONFIG_SERVER_TIMEOUT="60s" \
+           yourapp:latest
+```
+
+### Approach 2: Static Mode with Separate Files
+
+For locked-down production deployments:
+
+```bash
+# Development
+cfgx generate --in config.dev.toml --out config/config.go --mode static
+
+# Production
+cfgx generate --in config.prod.toml --out config/config.go --mode static
+```
+
+### Approach 3: Static Mode with Build-Time Env Vars
+
+```dockerfile
+FROM golang:1.25.1 as builder
+WORKDIR /app
+COPY . .
+RUN go install github.com/gomantics/cfgx/cmd/cfgx@latest
+# Inject secrets at build time via --no-env flag is disabled (enabled by default)
+RUN cfgx generate --in config.toml --out config/config.go --mode static
 RUN go build -o app
 ```
 
@@ -265,7 +423,7 @@ CONFIG_DATABASE_DSN="postgres://prod.example.com/db"
 CONFIG_SERVER_ADDR=":443"
 ```
 
-### Approach 3: Build matrix
+### Approach 4: Build Matrix
 
 ```bash
 cfgx generate --in config.prod.toml --out config/config.go && go build -o app-prod
@@ -274,11 +432,64 @@ cfgx generate --in config.dev.toml --out config/config.go && go build -o app-dev
 
 ## FAQ
 
+### When should I use static vs getter mode?
+
+**Use static mode when:**
+
+- Building internal tools or services
+- You control the deployment environment
+- Performance is critical (zero runtime overhead)
+- Config rarely changes between environments
+- You want maximum security (no runtime overrides possible)
+
+**Use getter mode when:**
+
+- Building open source applications
+- Distributing via Docker/containers
+- Users need to configure without rebuilding
+- Following 12-factor app principles
+- You want sensible defaults with easy overrides
+
+**Rule of thumb:** If you're shipping to users who can't rebuild from source, use getter mode.
+
 ### Should I commit generated code?
 
 **Yes.** Like `sqlc` and `protoc`, commit the generated code. It's part of your source tree and should be versioned.
 
 **However:** Don't commit TOML files with production secrets. Keep those in your secrets manager and inject via environment variables during build.
+
+### How do I use different TLS certs in production?
+
+**Getter mode (recommended):**
+
+```bash
+# Development: uses embedded certs from config.toml
+./myapp
+
+# Production: override via env vars pointing to file paths
+CONFIG_SERVER_TLS_CERT=/etc/ssl/prod.crt \
+CONFIG_SERVER_TLS_KEY=/etc/ssl/prod.key \
+./myapp
+```
+
+In Kubernetes, mount secrets as files and point to them:
+
+```yaml
+env:
+  - name: CONFIG_SERVER_TLS_CERT
+    value: /etc/tls/tls.crt
+volumeMounts:
+  - name: tls-secret
+    mountPath: /etc/tls
+volumes:
+  - name: tls-secret
+    secret:
+      secretName: prod-tls-secret
+```
+
+**Static mode:**
+
+Use different TOML files for each environment and generate at build time.
 
 ### Do I need to distribute config files?
 
