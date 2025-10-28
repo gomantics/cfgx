@@ -43,6 +43,7 @@ func init() {
 
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(watchCmd)
+	rootCmd.AddCommand(diffCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 

@@ -1,0 +1,17 @@
+[server]
+addr = ":443"
+tls_enabled = true
+timeout = "30s"
+
+[database]
+dsn = "postgresql://prod-db/production"
+max_conns = 100
+timeout = "10s"
+
+[logging]
+level = "info"
+format = "json"
+
+[monitoring]
+enabled = true
+interval = "60s"

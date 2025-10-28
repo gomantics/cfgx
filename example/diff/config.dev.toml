@@ -1,0 +1,13 @@
+[server]
+addr = ":8080"
+debug = true
+timeout = "30s"
+
+[database]
+dsn = "postgresql://localhost/dev"
+max_conns = 10
+timeout = "5s"
+
+[logging]
+level = "debug"
+format = "json"
