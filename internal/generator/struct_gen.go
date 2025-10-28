@@ -412,13 +412,42 @@ func (g *Generator) generateStructsAndGetters(buf *bytes.Buffer, data map[string
 		}
 	}
 
-	// Generate var declarations
+	// Generate top-level getter functions for simple variables
+	for _, key := range keys {
+		value := data[key]
+
+		// Only generate getters for non-struct, non-array-of-structs values
+		switch val := value.(type) {
+		case map[string]any, []map[string]any:
+			// Skip structs - they will be var declarations
+			continue
+		case []any:
+			// Check if it's an array of maps (structs)
+			if len(val) > 0 {
+				if _, ok := val[0].(map[string]any); ok {
+					// Skip array of structs
+					continue
+				}
+			}
+			// Generate getter for array of primitives
+			if err := g.generateTopLevelGetter(buf, key, value); err != nil {
+				return err
+			}
+		default:
+			// Generate getter for simple types
+			if err := g.generateTopLevelGetter(buf, key, value); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Generate var declarations (only for structs and arrays of structs)
 	buf.WriteString("var (\n")
 	for _, key := range keys {
 		varName := sx.PascalCase(key)
 		value := data[key]
 
-		switch value.(type) {
+		switch val := value.(type) {
 		case map[string]any:
 			structName := sx.CamelCase(key) + "Config"
 			fmt.Fprintf(buf, "\t%s %s\n", varName, structName)
@@ -426,11 +455,13 @@ func (g *Generator) generateStructsAndGetters(buf *bytes.Buffer, data map[string
 			structName := sx.CamelCase(key) + "Item"
 			fmt.Fprintf(buf, "\t%s []%s\n", varName, structName)
 		case []any:
-			goType := g.toGoType(value)
-			fmt.Fprintf(buf, "\t%s %s\n", varName, goType)
-		default:
-			goType := g.toGoType(value)
-			fmt.Fprintf(buf, "\t%s %s\n", varName, goType)
+			// Check if it's an array of maps (structs)
+			if len(val) > 0 {
+				if _, ok := val[0].(map[string]any); ok {
+					structName := sx.CamelCase(key) + "Item"
+					fmt.Fprintf(buf, "\t%s []%s\n", varName, structName)
+				}
+			}
 		}
 	}
 	buf.WriteString(")\n")
@@ -546,7 +577,26 @@ func (g *Generator) generateGetterMethods(buf *bytes.Buffer, structName string, 
 // generateGetterMethod generates a single getter method with env var override.
 func (g *Generator) generateGetterMethod(buf *bytes.Buffer, structName, fieldName, goType, envVarName string, defaultValue any) error {
 	fmt.Fprintf(buf, "func (%s) %s() %s {\n", structName, fieldName, goType)
+	g.writeGetterBody(buf, goType, envVarName, defaultValue)
+	buf.WriteString("}\n\n")
+	return nil
+}
 
+// generateTopLevelGetter generates a top-level getter function (not a method) for simple variables.
+func (g *Generator) generateTopLevelGetter(buf *bytes.Buffer, varName string, defaultValue any) error {
+	funcName := sx.PascalCase(varName)
+	goType := g.toGoType(defaultValue)
+	envVarName := "CONFIG_" + strings.ToUpper(varName)
+
+	fmt.Fprintf(buf, "func %s() %s {\n", funcName, goType)
+	g.writeGetterBody(buf, goType, envVarName, defaultValue)
+	buf.WriteString("}\n\n")
+	return nil
+}
+
+// writeGetterBody generates the common body logic for getter functions/methods.
+// This handles env var checking, type conversion, and default value fallback.
+func (g *Generator) writeGetterBody(buf *bytes.Buffer, goType, envVarName string, defaultValue any) {
 	// Special handling for []byte (file references) - check for file path in env var
 	if goType == "[]byte" {
 		buf.WriteString("\t// Check for file path to load\n")
@@ -559,8 +609,7 @@ func (g *Generator) generateGetterMethod(buf *bytes.Buffer, structName, fieldNam
 		buf.WriteString("\treturn ")
 		g.writeValue(buf, defaultValue)
 		buf.WriteString("\n")
-		buf.WriteString("}\n\n")
-		return nil
+		return
 	}
 
 	// For other types, check env var with type conversion
@@ -599,9 +648,6 @@ func (g *Generator) generateGetterMethod(buf *bytes.Buffer, structName, fieldNam
 	buf.WriteString("\treturn ")
 	g.writeValue(buf, defaultValue)
 	buf.WriteString("\n")
-
-	buf.WriteString("}\n\n")
-	return nil
 }
 
 // envVarName generates an environment variable name from a struct name and field name.

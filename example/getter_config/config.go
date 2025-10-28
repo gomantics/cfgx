@@ -427,13 +427,19 @@ func (serviceConfig) Weights() []float64 {
 	return []float64{1, 2.5, 3.7}
 }
 
+func Name() string {
+	if v := os.Getenv("CONFIG_NAME"); v != "" {
+		return v
+	}
+	return "cfgx"
+}
+
 var (
 	App       appConfig
 	Cache     cacheConfig
 	Database  databaseConfig
 	Endpoints []endpointsItem
 	Features  []featuresItem
-	Name      string
 	Server    serverConfig
 	Service   serviceConfig
 )

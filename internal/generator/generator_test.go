@@ -344,3 +344,52 @@ tls_key = "file:files/small.txt"
 	require.Contains(t, outputStr, "func (serverConfig) TlsKey() []byte", "output missing TlsKey getter")
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TLS_KEY")`, "output missing file path env var check for key")
 }
+
+func TestGenerator_GetterMode_TopLevelVariables(t *testing.T) {
+	data := []byte(`
+name = "myapp"
+version = "1.0.0"
+port = 8080
+debug = true
+timeout = "30s"
+
+[server]
+addr = ":8080"
+`)
+
+	gen := New(WithPackageName("config"), WithMode("getter"))
+	output, err := gen.Generate(data)
+	require.NoError(t, err, "Generate() should not error")
+
+	outputStr := string(output)
+
+	// Check top-level getters are generated (not vars)
+	require.Contains(t, outputStr, "func Name() string", "output missing Name getter")
+	require.Contains(t, outputStr, "func Version() string", "output missing Version getter")
+	require.Contains(t, outputStr, "func Port() int64", "output missing Port getter")
+	require.Contains(t, outputStr, "func Debug() bool", "output missing Debug getter")
+	require.Contains(t, outputStr, "func Timeout() time.Duration", "output missing Timeout getter")
+
+	// Check env var overrides in top-level getters
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_NAME")`, "output missing CONFIG_NAME env var check")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_VERSION")`, "output missing CONFIG_VERSION env var check")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_PORT")`, "output missing CONFIG_PORT env var check")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_DEBUG")`, "output missing CONFIG_DEBUG env var check")
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_TIMEOUT")`, "output missing CONFIG_TIMEOUT env var check")
+
+	// Check default values are returned
+	require.Contains(t, outputStr, `return "myapp"`, "output missing name default value")
+	require.Contains(t, outputStr, `return "1.0.0"`, "output missing version default value")
+	require.Contains(t, outputStr, "return 8080", "output missing port default value")
+	require.Contains(t, outputStr, "return true", "output missing debug default value")
+	require.Contains(t, outputStr, "return 30 * time.Second", "output missing timeout default value")
+
+	// Verify top-level simple variables are NOT in var block
+	require.NotContains(t, outputStr, "Name string", "top-level Name should be a getter, not a var")
+	require.NotContains(t, outputStr, "Version string", "top-level Version should be a getter, not a var")
+	require.NotContains(t, outputStr, "Port int64", "top-level Port should be a getter, not a var")
+
+	// But structs should still be in var block
+	require.Contains(t, outputStr, "var (", "output missing var block")
+	require.Contains(t, outputStr, "Server serverConfig", "output missing Server var declaration")
+}
