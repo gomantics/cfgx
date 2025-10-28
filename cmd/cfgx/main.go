@@ -25,6 +25,7 @@ var (
 	packageName string
 	noEnv       bool
 	maxFileSize string
+	mode        string
 )
 
 func main() {
@@ -104,6 +105,11 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("--out flag is required")
 		}
 
+		// Validate mode
+		if mode != "static" && mode != "getter" {
+			return fmt.Errorf("invalid --mode value %q: must be 'static' or 'getter'", mode)
+		}
+
 		// Parse max file size
 		maxFileSizeBytes, err := parseFileSize(maxFileSize)
 		if err != nil {
@@ -117,6 +123,7 @@ var generateCmd = &cobra.Command{
 			PackageName: packageName,
 			EnableEnv:   !noEnv,
 			MaxFileSize: maxFileSizeBytes,
+			Mode:        mode,
 		}
 
 		if err := cfgx.GenerateFromFile(opts); err != nil {
@@ -155,6 +162,7 @@ func init() {
 	generateCmd.Flags().StringVarP(&packageName, "pkg", "p", "", "package name (default: inferred from output path or 'config')")
 	generateCmd.Flags().BoolVar(&noEnv, "no-env", false, "disable environment variable overrides")
 	generateCmd.Flags().StringVar(&maxFileSize, "max-file-size", "1MB", "maximum file size for file: references (e.g., 10MB, 1GB, 512KB)")
+	generateCmd.Flags().StringVar(&mode, "mode", "static", "generation mode: 'static' (values baked at build time) or 'getter' (runtime env var overrides)")
 
 	generateCmd.MarkFlagRequired("out")
 
