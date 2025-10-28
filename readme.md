@@ -117,6 +117,7 @@ Flags:
       --mode string        Generation mode: 'static' or 'getter' (default "static")
       --no-env             Disable environment variable overrides (static mode only)
       --max-file-size      Maximum file size for file: references (default "1MB")
+                           Supports: KB, MB, GB (e.g., "5MB", "1GB", "512KB")
       --debounce int       Debounce delay in milliseconds (default 100)
 ```
 
