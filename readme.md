@@ -84,6 +84,12 @@ cfgx generate --in server.toml --out config/server.go
 cfgx generate --in worker.toml --out config/worker.go
 ```
 
+### Compare configs
+
+```bash
+cfgx diff config.dev.toml config.prod.toml
+```
+
 ## CLI Reference
 
 ### `cfgx generate`
@@ -141,6 +147,56 @@ The watch command:
 - Continues watching even if generation fails
 - Handles editor save patterns (file remove/recreate)
 - Gracefully exits on Ctrl+C
+
+### `cfgx diff`
+
+Compare two TOML files and highlight configuration differences. Useful for understanding changes between environments (dev vs prod) or between base and override configurations.
+
+```
+cfgx diff <file1> <file2> [flags]
+
+Flags:
+      --keys-only          Show only the keys that differ, not their values
+      --format string      Output format: text or json (default "text")
+```
+
+**Examples:**
+
+```bash
+# Compare two config files
+cfgx diff config.dev.toml config.prod.toml
+
+# Show only changed keys
+cfgx diff config.dev.toml config.prod.toml --keys-only
+
+# Output as JSON for scripting
+cfgx diff base.toml override.toml --format json
+```
+
+**Output:**
+
+```
+Differences between config.dev.toml and config.prod.toml:
+
+  server.addr
+    - ":8080"     (config.dev.toml)
+    + ":443"      (config.prod.toml)
+
+  database.max_conns
+    - 10          (config.dev.toml)
+    + 100         (config.prod.toml)
+
+  + server.tls_enabled = true     (only in config.prod.toml)
+  - server.debug = true           (only in config.dev.toml)
+```
+
+The diff command:
+
+- Exits with code 0 on successful comparison (regardless of differences found)
+- Exits with code 1 only on errors (file not found, invalid TOML, etc.)
+- Recursively compares nested tables
+- Shows added (+), removed (-), and changed (~) values
+- Supports JSON output for integration with other tools
 
 ## Modes
 

@@ -14,49 +14,12 @@ The current focus is on stability and core functionality refinement. New command
 
 - **`generate`** - Generate type-safe Go code from TOML config
 - **`version`** - Display version information
-- **`watch`** - Auto-regenerate on TOML file changes (✨ NEW)
+- **`watch`** - Auto-regenerate on TOML file changes
+- **`diff`** - Compare two TOML files and highlight differences (✨ NEW)
 
 ---
 
 ## 🚀 Immediate Priority
-
-### `diff`
-
-Compare two TOML files and highlight configuration differences.
-
-**Purpose:** Help developers understand what changes between environments (dev vs prod, base vs override).
-
-**Usage:**
-
-```bash
-# Compare two config files
-cfgx diff config.dev.toml config.prod.toml
-
-# Show only changed keys
-cfgx diff config.dev.toml config.prod.toml --keys-only
-
-# Output as JSON for scripting
-cfgx diff base.toml override.toml --format json
-```
-
-**Output Example:**
-
-```
-Differences between config.dev.toml and config.prod.toml:
-
-  server.addr
-    - ":8080"     (config.dev.toml)
-    + ":443"      (config.prod.toml)
-
-  database.max_conns
-    - 10          (config.dev.toml)
-    + 100         (config.prod.toml)
-
-  + server.tls_enabled = true     (only in config.prod.toml)
-  - server.debug = true           (only in config.dev.toml)
-```
-
-**Priority:** High - Common use case for multi-environment deployments
 
 ---
 
