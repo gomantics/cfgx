@@ -34,29 +34,24 @@ var watchCmd = &cobra.Command{
   # Watch with custom mode
   cfgx watch --in config.toml --out config.go --mode getter`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Require -out flag
 		if outputFile == "" {
 			return fmt.Errorf("--out flag is required")
 		}
 
-		// Validate mode
 		if mode != "static" && mode != "getter" {
 			return fmt.Errorf("invalid --mode value %q: must be 'static' or 'getter'", mode)
 		}
 
-		// Parse max file size
 		maxFileSizeBytes, err := parseFileSize(maxFileSize)
 		if err != nil {
 			return fmt.Errorf("invalid --max-file-size: %w", err)
 		}
 
-		// Get absolute path for watching (fsnotify works better with absolute paths)
 		absInputFile, err := filepath.Abs(inputFile)
 		if err != nil {
 			return fmt.Errorf("failed to get absolute path: %w", err)
 		}
 
-		// Create generate options
 		opts := &cfgx.GenerateOptions{
 			InputFile:   inputFile,
 			OutputFile:  outputFile,
@@ -66,7 +61,6 @@ var watchCmd = &cobra.Command{
 			Mode:        mode,
 		}
 
-		// Perform initial generation
 		fmt.Printf("Generating %s...\n", outputFile)
 		if err := cfgx.GenerateFromFile(opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -75,40 +69,33 @@ var watchCmd = &cobra.Command{
 			fmt.Printf("✓ Generated %s\n", outputFile)
 		}
 
-		// Create file watcher
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
 			return fmt.Errorf("failed to create watcher: %w", err)
 		}
 		defer watcher.Close()
 
-		// Add file to watcher
 		if err := watcher.Add(absInputFile); err != nil {
 			return fmt.Errorf("failed to watch %s: %w", absInputFile, err)
 		}
 
 		fmt.Printf("\nWatching %s for changes (Ctrl+C to stop)...\n", inputFile)
 
-		// Setup context for graceful shutdown
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Setup signal handler for graceful shutdown
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		defer signal.Stop(sigChan)
 
-		// Debounce timer with mutex for thread-safe access
 		var (
 			debounceTimer *time.Timer
 			timerMu       sync.Mutex
 		)
 		debounceDuration := time.Duration(debounce) * time.Millisecond
 
-		// Track if a file re-add goroutine is already running
 		var readdInProgress atomic.Bool
 
-		// Watch loop
 		for {
 			select {
 			case event, ok := <-watcher.Events:
@@ -133,21 +120,18 @@ var watchCmd = &cobra.Command{
 					})
 					timerMu.Unlock()
 				} else if event.Has(fsnotify.Remove) {
-					// File was removed - common with some editors (vim, etc.)
-					// Try to re-add the watcher when file is recreated
 					fmt.Println("File removed, waiting for recreation...")
-					// Remove from watcher (it's already gone)
-					watcher.Remove(absInputFile)
+					if err := watcher.Remove(absInputFile); err != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to remove watcher: %v\n", err)
+					}
 
-					// Only spawn one re-add goroutine at a time
 					if readdInProgress.CompareAndSwap(false, true) {
 						go func() {
 							defer readdInProgress.Store(false)
 
-							for i := 0; i < 10; i++ {
+							for range 10 {
 								select {
 								case <-ctx.Done():
-									// Context cancelled, exit gracefully
 									return
 								case <-time.After(100 * time.Millisecond):
 									if err := watcher.Add(absInputFile); err == nil {
