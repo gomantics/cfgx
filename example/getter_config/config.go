@@ -8,58 +8,58 @@ import (
 	"time"
 )
 
-type AppConfig struct{}
+type appConfig struct{}
 
-type AppLoggingConfig struct{}
+type apploggingConfig struct{}
 
-type AppLoggingRotationConfig struct{}
+type apploggingrotationConfig struct{}
 
-type CacheConfig struct{}
+type cacheConfig struct{}
 
-type CacheRedisConfig struct{}
+type cacheredisConfig struct{}
 
-type DatabaseConfig struct{}
+type databaseConfig struct{}
 
-type DatabasePoolConfig struct{}
+type databasepoolConfig struct{}
 
-type EndpointsItem struct{}
+type endpointsItem struct{}
 
-type FeaturesItem struct{}
+type featuresItem struct{}
 
-type ServerConfig struct{}
+type serverConfig struct{}
 
-type ServiceConfig struct{}
+type serviceConfig struct{}
 
-func (AppConfig) Logging() AppLoggingConfig {
-	return AppLoggingConfig{}
+func (appConfig) Logging() apploggingConfig {
+	return apploggingConfig{}
 }
 
-func (AppLoggingConfig) File() string {
+func (apploggingConfig) File() string {
 	if v := os.Getenv("CONFIG_APP_LOGGING_FILE"); v != "" {
 		return v
 	}
 	return "/var/log/app.log"
 }
 
-func (AppLoggingConfig) Format() string {
+func (apploggingConfig) Format() string {
 	if v := os.Getenv("CONFIG_APP_LOGGING_FORMAT"); v != "" {
 		return v
 	}
 	return "json"
 }
 
-func (AppLoggingConfig) Level() string {
+func (apploggingConfig) Level() string {
 	if v := os.Getenv("CONFIG_APP_LOGGING_LEVEL"); v != "" {
 		return v
 	}
 	return "info"
 }
 
-func (AppLoggingConfig) Rotation() AppLoggingRotationConfig {
-	return AppLoggingRotationConfig{}
+func (apploggingConfig) Rotation() apploggingrotationConfig {
+	return apploggingrotationConfig{}
 }
 
-func (AppLoggingRotationConfig) Compress() bool {
+func (apploggingrotationConfig) Compress() bool {
 	if v := os.Getenv("CONFIG_APP_LOGGING_ROTATION_COMPRESS"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
@@ -68,7 +68,7 @@ func (AppLoggingRotationConfig) Compress() bool {
 	return true
 }
 
-func (AppLoggingRotationConfig) MaxAge() int64 {
+func (apploggingrotationConfig) MaxAge() int64 {
 	if v := os.Getenv("CONFIG_APP_LOGGING_ROTATION_MAX_AGE"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -77,7 +77,7 @@ func (AppLoggingRotationConfig) MaxAge() int64 {
 	return 30
 }
 
-func (AppLoggingRotationConfig) MaxSize() int64 {
+func (apploggingrotationConfig) MaxSize() int64 {
 	if v := os.Getenv("CONFIG_APP_LOGGING_ROTATION_MAX_SIZE"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -86,21 +86,21 @@ func (AppLoggingRotationConfig) MaxSize() int64 {
 	return 100
 }
 
-func (AppConfig) Name() string {
+func (appConfig) Name() string {
 	if v := os.Getenv("CONFIG_APP_NAME"); v != "" {
 		return v
 	}
 	return "myservice"
 }
 
-func (AppConfig) Version() string {
+func (appConfig) Version() string {
 	if v := os.Getenv("CONFIG_APP_VERSION"); v != "" {
 		return v
 	}
 	return "1.0.0"
 }
 
-func (CacheConfig) Enabled() bool {
+func (cacheConfig) Enabled() bool {
 	if v := os.Getenv("CONFIG_CACHE_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
@@ -109,7 +109,7 @@ func (CacheConfig) Enabled() bool {
 	return true
 }
 
-func (CacheConfig) MaxEntries() int64 {
+func (cacheConfig) MaxEntries() int64 {
 	if v := os.Getenv("CONFIG_CACHE_MAX_ENTRIES"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -118,25 +118,25 @@ func (CacheConfig) MaxEntries() int64 {
 	return 10000
 }
 
-func (CacheConfig) Outputs() []string {
+func (cacheConfig) Outputs() []string {
 	if v := os.Getenv("CONFIG_CACHE_OUTPUTS"); v != "" {
 		// Array overrides not supported via env vars
 	}
 	return []string{"stdout", "file"}
 }
 
-func (CacheConfig) Redis() CacheRedisConfig {
-	return CacheRedisConfig{}
+func (cacheConfig) Redis() cacheredisConfig {
+	return cacheredisConfig{}
 }
 
-func (CacheRedisConfig) Addr() string {
+func (cacheredisConfig) Addr() string {
 	if v := os.Getenv("CONFIG_CACHE_REDIS_ADDR"); v != "" {
 		return v
 	}
 	return "localhost:6379"
 }
 
-func (CacheRedisConfig) Db() int64 {
+func (cacheredisConfig) Db() int64 {
 	if v := os.Getenv("CONFIG_CACHE_REDIS_DB"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -145,14 +145,14 @@ func (CacheRedisConfig) Db() int64 {
 	return 0
 }
 
-func (CacheRedisConfig) Password() string {
+func (cacheredisConfig) Password() string {
 	if v := os.Getenv("CONFIG_CACHE_REDIS_PASSWORD"); v != "" {
 		return v
 	}
 	return ""
 }
 
-func (CacheConfig) Ttl() time.Duration {
+func (cacheConfig) Ttl() time.Duration {
 	if v := os.Getenv("CONFIG_CACHE_TTL"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -161,7 +161,7 @@ func (CacheConfig) Ttl() time.Duration {
 	return 1 * time.Hour
 }
 
-func (DatabaseConfig) ConnMaxLifetime() time.Duration {
+func (databaseConfig) ConnMaxLifetime() time.Duration {
 	if v := os.Getenv("CONFIG_DATABASE_CONN_MAX_LIFETIME"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -170,14 +170,14 @@ func (DatabaseConfig) ConnMaxLifetime() time.Duration {
 	return 5 * time.Minute
 }
 
-func (DatabaseConfig) Dsn() string {
+func (databaseConfig) Dsn() string {
 	if v := os.Getenv("CONFIG_DATABASE_DSN"); v != "" {
 		return v
 	}
 	return "postgres://localhost/myapp"
 }
 
-func (DatabaseConfig) MaxIdleConns() int64 {
+func (databaseConfig) MaxIdleConns() int64 {
 	if v := os.Getenv("CONFIG_DATABASE_MAX_IDLE_CONNS"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -186,7 +186,7 @@ func (DatabaseConfig) MaxIdleConns() int64 {
 	return 5
 }
 
-func (DatabaseConfig) MaxOpenConns() int64 {
+func (databaseConfig) MaxOpenConns() int64 {
 	if v := os.Getenv("CONFIG_DATABASE_MAX_OPEN_CONNS"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -195,11 +195,11 @@ func (DatabaseConfig) MaxOpenConns() int64 {
 	return 25
 }
 
-func (DatabaseConfig) Pool() DatabasePoolConfig {
-	return DatabasePoolConfig{}
+func (databaseConfig) Pool() databasepoolConfig {
+	return databasepoolConfig{}
 }
 
-func (DatabasePoolConfig) Enabled() bool {
+func (databasepoolConfig) Enabled() bool {
 	if v := os.Getenv("CONFIG_DATABASE_POOL_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
@@ -208,7 +208,7 @@ func (DatabasePoolConfig) Enabled() bool {
 	return true
 }
 
-func (DatabasePoolConfig) MaxSize() int64 {
+func (databasepoolConfig) MaxSize() int64 {
 	if v := os.Getenv("CONFIG_DATABASE_POOL_MAX_SIZE"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -217,7 +217,7 @@ func (DatabasePoolConfig) MaxSize() int64 {
 	return 10
 }
 
-func (DatabasePoolConfig) MinSize() int64 {
+func (databasepoolConfig) MinSize() int64 {
 	if v := os.Getenv("CONFIG_DATABASE_POOL_MIN_SIZE"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -226,21 +226,21 @@ func (DatabasePoolConfig) MinSize() int64 {
 	return 2
 }
 
-func (EndpointsItem) Methods() []string {
+func (endpointsItem) Methods() []string {
 	if v := os.Getenv("CONFIG_ENDPOINTS_METHODS"); v != "" {
 		// Array overrides not supported via env vars
 	}
 	return []string{"GET", "POST"}
 }
 
-func (EndpointsItem) Path() string {
+func (endpointsItem) Path() string {
 	if v := os.Getenv("CONFIG_ENDPOINTS_PATH"); v != "" {
 		return v
 	}
 	return "/api/v1"
 }
 
-func (EndpointsItem) RateLimit() int64 {
+func (endpointsItem) RateLimit() int64 {
 	if v := os.Getenv("CONFIG_ENDPOINTS_RATE_LIMIT"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -249,7 +249,7 @@ func (EndpointsItem) RateLimit() int64 {
 	return 100
 }
 
-func (FeaturesItem) Enabled() bool {
+func (featuresItem) Enabled() bool {
 	if v := os.Getenv("CONFIG_FEATURES_ENABLED"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
@@ -258,14 +258,14 @@ func (FeaturesItem) Enabled() bool {
 	return true
 }
 
-func (FeaturesItem) Name() string {
+func (featuresItem) Name() string {
 	if v := os.Getenv("CONFIG_FEATURES_NAME"); v != "" {
 		return v
 	}
 	return "authentication"
 }
 
-func (FeaturesItem) Priority() int64 {
+func (featuresItem) Priority() int64 {
 	if v := os.Getenv("CONFIG_FEATURES_PRIORITY"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -274,14 +274,14 @@ func (FeaturesItem) Priority() int64 {
 	return 1
 }
 
-func (ServerConfig) Addr() string {
+func (serverConfig) Addr() string {
 	if v := os.Getenv("CONFIG_SERVER_ADDR"); v != "" {
 		return v
 	}
 	return ":8080"
 }
 
-func (ServerConfig) Cert() []byte {
+func (serverConfig) Cert() []byte {
 	// Check for file path to load
 	if path := os.Getenv("CONFIG_SERVER_CERT"); path != "" {
 		if data, err := os.ReadFile(path); err == nil {
@@ -329,7 +329,7 @@ func (ServerConfig) Cert() []byte {
 	}
 }
 
-func (ServerConfig) Debug() bool {
+func (serverConfig) Debug() bool {
 	if v := os.Getenv("CONFIG_SERVER_DEBUG"); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
@@ -338,7 +338,7 @@ func (ServerConfig) Debug() bool {
 	return true
 }
 
-func (ServerConfig) IdleTimeout() time.Duration {
+func (serverConfig) IdleTimeout() time.Duration {
 	if v := os.Getenv("CONFIG_SERVER_IDLE_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -347,7 +347,7 @@ func (ServerConfig) IdleTimeout() time.Duration {
 	return 5 * time.Minute
 }
 
-func (ServerConfig) MaxHeaderBytes() int64 {
+func (serverConfig) MaxHeaderBytes() int64 {
 	if v := os.Getenv("CONFIG_SERVER_MAX_HEADER_BYTES"); v != "" {
 		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return i
@@ -356,7 +356,7 @@ func (ServerConfig) MaxHeaderBytes() int64 {
 	return 1048576
 }
 
-func (ServerConfig) ReadTimeout() time.Duration {
+func (serverConfig) ReadTimeout() time.Duration {
 	if v := os.Getenv("CONFIG_SERVER_READ_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -365,7 +365,7 @@ func (ServerConfig) ReadTimeout() time.Duration {
 	return 15 * time.Second
 }
 
-func (ServerConfig) ShutdownTimeout() time.Duration {
+func (serverConfig) ShutdownTimeout() time.Duration {
 	if v := os.Getenv("CONFIG_SERVER_SHUTDOWN_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -374,7 +374,7 @@ func (ServerConfig) ShutdownTimeout() time.Duration {
 	return 2*time.Hour + 30*time.Minute
 }
 
-func (ServerConfig) Timeout() time.Duration {
+func (serverConfig) Timeout() time.Duration {
 	if v := os.Getenv("CONFIG_SERVER_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -383,7 +383,7 @@ func (ServerConfig) Timeout() time.Duration {
 	return 30 * time.Second
 }
 
-func (ServerConfig) WriteTimeout() time.Duration {
+func (serverConfig) WriteTimeout() time.Duration {
 	if v := os.Getenv("CONFIG_SERVER_WRITE_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
@@ -392,35 +392,35 @@ func (ServerConfig) WriteTimeout() time.Duration {
 	return 15 * time.Second
 }
 
-func (ServiceConfig) AllowedOrigins() []string {
+func (serviceConfig) AllowedOrigins() []string {
 	if v := os.Getenv("CONFIG_SERVICE_ALLOWED_ORIGINS"); v != "" {
 		// Array overrides not supported via env vars
 	}
 	return []string{"https://example.com", "https://app.example.com"}
 }
 
-func (ServiceConfig) Features() []string {
+func (serviceConfig) Features() []string {
 	if v := os.Getenv("CONFIG_SERVICE_FEATURES"); v != "" {
 		// Array overrides not supported via env vars
 	}
 	return []string{"auth", "cache", "metrics"}
 }
 
-func (ServiceConfig) Name() string {
+func (serviceConfig) Name() string {
 	if v := os.Getenv("CONFIG_SERVICE_NAME"); v != "" {
 		return v
 	}
 	return "api"
 }
 
-func (ServiceConfig) Ports() []int64 {
+func (serviceConfig) Ports() []int64 {
 	if v := os.Getenv("CONFIG_SERVICE_PORTS"); v != "" {
 		// Array overrides not supported via env vars
 	}
 	return []int64{8080, 8081, 8082}
 }
 
-func (ServiceConfig) Weights() []float64 {
+func (serviceConfig) Weights() []float64 {
 	if v := os.Getenv("CONFIG_SERVICE_WEIGHTS"); v != "" {
 		// Array overrides not supported via env vars
 	}
@@ -428,12 +428,12 @@ func (ServiceConfig) Weights() []float64 {
 }
 
 var (
-	App       AppConfig
-	Cache     CacheConfig
-	Database  DatabaseConfig
-	Endpoints []EndpointsItem
-	Features  []FeaturesItem
+	App       appConfig
+	Cache     cacheConfig
+	Database  databaseConfig
+	Endpoints []endpointsItem
+	Features  []featuresItem
 	Name      string
-	Server    ServerConfig
-	Service   ServiceConfig
+	Server    serverConfig
+	Service   serviceConfig
 )

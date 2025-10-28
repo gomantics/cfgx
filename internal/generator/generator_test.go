@@ -164,15 +164,15 @@ max_conns = 25
 	require.Contains(t, outputStr, `"time"`, "output missing time import")
 
 	// Check empty structs
-	require.Contains(t, outputStr, "type ServerConfig struct{}", "output missing empty ServerConfig struct")
-	require.Contains(t, outputStr, "type DatabaseConfig struct{}", "output missing empty DatabaseConfig struct")
+	require.Contains(t, outputStr, "type serverConfig struct{}", "output missing empty serverConfig struct")
+	require.Contains(t, outputStr, "type databaseConfig struct{}", "output missing empty databaseConfig struct")
 
 	// Check getter methods exist
-	require.Contains(t, outputStr, "func (ServerConfig) Addr() string", "output missing Addr getter")
-	require.Contains(t, outputStr, "func (ServerConfig) Timeout() time.Duration", "output missing Timeout getter")
-	require.Contains(t, outputStr, "func (ServerConfig) Port() int64", "output missing Port getter")
-	require.Contains(t, outputStr, "func (ServerConfig) Debug() bool", "output missing Debug getter")
-	require.Contains(t, outputStr, "func (DatabaseConfig) MaxConns() int64", "output missing MaxConns getter")
+	require.Contains(t, outputStr, "func (serverConfig) Addr() string", "output missing Addr getter")
+	require.Contains(t, outputStr, "func (serverConfig) Timeout() time.Duration", "output missing Timeout getter")
+	require.Contains(t, outputStr, "func (serverConfig) Port() int64", "output missing Port getter")
+	require.Contains(t, outputStr, "func (serverConfig) Debug() bool", "output missing Debug getter")
+	require.Contains(t, outputStr, "func (databaseConfig) MaxConns() int64", "output missing MaxConns getter")
 
 	// Check env var logic
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_ADDR")`, "output missing env var check for addr")
@@ -193,9 +193,9 @@ max_conns = 25
 
 	// Check var declarations (allow for variable spacing due to gofmt alignment)
 	require.Contains(t, outputStr, "Server", "output missing Server var")
-	require.Contains(t, outputStr, "ServerConfig", "output missing ServerConfig type")
+	require.Contains(t, outputStr, "serverConfig", "output missing serverConfig type")
 	require.Contains(t, outputStr, "Database", "output missing Database var")
-	require.Contains(t, outputStr, "DatabaseConfig", "output missing DatabaseConfig type")
+	require.Contains(t, outputStr, "databaseConfig", "output missing databaseConfig type")
 }
 
 func TestGenerator_GetterMode_NestedStructs(t *testing.T) {
@@ -215,18 +215,18 @@ min_size = 2
 	outputStr := string(output)
 
 	// Check nested structs
-	require.Contains(t, outputStr, "type DatabaseConfig struct{}", "output missing DatabaseConfig")
-	require.Contains(t, outputStr, "type DatabasePoolConfig struct{}", "output missing DatabasePoolConfig")
+	require.Contains(t, outputStr, "type databaseConfig struct{}", "output missing databaseConfig")
+	require.Contains(t, outputStr, "type databasepoolConfig struct{}", "output missing databasepoolConfig")
 
 	// Check nested getter returns nested struct
-	require.Contains(t, outputStr, "func (DatabaseConfig) Pool() DatabasePoolConfig", "output missing Pool getter")
-	require.Contains(t, outputStr, "return DatabasePoolConfig{}", "output missing DatabasePoolConfig return")
+	require.Contains(t, outputStr, "func (databaseConfig) Pool() databasepoolConfig", "output missing Pool getter")
+	require.Contains(t, outputStr, "return databasepoolConfig{}", "output missing databasepoolConfig return")
 
 	// Check nested struct methods with correct env var names
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_DATABASE_POOL_MAX_SIZE")`, "output missing nested env var")
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_DATABASE_POOL_MIN_SIZE")`, "output missing nested env var")
-	require.Contains(t, outputStr, "func (DatabasePoolConfig) MaxSize() int64", "output missing nested MaxSize getter")
-	require.Contains(t, outputStr, "func (DatabasePoolConfig) MinSize() int64", "output missing nested MinSize getter")
+	require.Contains(t, outputStr, "func (databasepoolConfig) MaxSize() int64", "output missing nested MaxSize getter")
+	require.Contains(t, outputStr, "func (databasepoolConfig) MinSize() int64", "output missing nested MinSize getter")
 }
 
 func TestGenerator_GetterMode_Arrays(t *testing.T) {
@@ -243,8 +243,8 @@ ports = [8080, 8081]
 	outputStr := string(output)
 
 	// Check array getters with limitation comment
-	require.Contains(t, outputStr, "func (ServiceConfig) Hosts() []string", "output missing Hosts getter")
-	require.Contains(t, outputStr, "func (ServiceConfig) Ports() []int64", "output missing Ports getter")
+	require.Contains(t, outputStr, "func (serviceConfig) Hosts() []string", "output missing Hosts getter")
+	require.Contains(t, outputStr, "func (serviceConfig) Ports() []int64", "output missing Ports getter")
 	require.Contains(t, outputStr, "// Array overrides not supported via env vars", "output missing array limitation comment")
 	require.Contains(t, outputStr, `return []string{"localhost", "example.com"}`, "output missing hosts default")
 	require.Contains(t, outputStr, "return []int64{8080, 8081}", "output missing ports default")
@@ -267,10 +267,10 @@ db = 0
 	outputStr := string(output)
 
 	// Check that Redis methods are only generated once
-	addrCount := strings.Count(outputStr, "func (CacheRedisConfig) Addr() string")
+	addrCount := strings.Count(outputStr, "func (cacheredisConfig) Addr() string")
 	require.Equal(t, 1, addrCount, "Addr method should be generated exactly once")
 
-	dbCount := strings.Count(outputStr, "func (CacheRedisConfig) Db() int64")
+	dbCount := strings.Count(outputStr, "func (cacheredisConfig) Db() int64")
 	require.Equal(t, 1, dbCount, "Db method should be generated exactly once")
 }
 
@@ -332,7 +332,7 @@ tls_key = "file:files/small.txt"
 	outputStr := string(output)
 
 	// Check file loading logic exists
-	require.Contains(t, outputStr, "func (ServerConfig) TlsCert() []byte", "output missing TlsCert getter")
+	require.Contains(t, outputStr, "func (serverConfig) TlsCert() []byte", "output missing TlsCert getter")
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TLS_CERT")`, "output missing file path env var check")
 	require.Contains(t, outputStr, "os.ReadFile(path)", "output missing file read")
 	require.Contains(t, outputStr, "return data", "output missing return data")
@@ -341,6 +341,6 @@ tls_key = "file:files/small.txt"
 	require.Contains(t, outputStr, "return []byte{", "output missing embedded fallback bytes")
 
 	// Check same for key
-	require.Contains(t, outputStr, "func (ServerConfig) TlsKey() []byte", "output missing TlsKey getter")
+	require.Contains(t, outputStr, "func (serverConfig) TlsKey() []byte", "output missing TlsKey getter")
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TLS_KEY")`, "output missing file path env var check for key")
 }
