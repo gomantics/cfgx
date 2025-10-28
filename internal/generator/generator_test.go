@@ -163,7 +163,7 @@ max_conns = 25
 	require.Contains(t, outputStr, `"strconv"`, "output missing strconv import")
 	require.Contains(t, outputStr, `"time"`, "output missing time import")
 
-	// Check empty structs (now unexported)
+	// Check empty structs
 	require.Contains(t, outputStr, "type serverConfig struct{}", "output missing empty serverConfig struct")
 	require.Contains(t, outputStr, "type databaseConfig struct{}", "output missing empty databaseConfig struct")
 
@@ -214,7 +214,7 @@ min_size = 2
 
 	outputStr := string(output)
 
-	// Check nested structs (now unexported)
+	// Check nested structs
 	require.Contains(t, outputStr, "type databaseConfig struct{}", "output missing databaseConfig")
 	require.Contains(t, outputStr, "type databasepoolConfig struct{}", "output missing databasepoolConfig")
 
@@ -242,7 +242,7 @@ ports = [8080, 8081]
 
 	outputStr := string(output)
 
-	// Check array getters with limitation comment (now unexported struct)
+	// Check array getters with limitation comment
 	require.Contains(t, outputStr, "func (serviceConfig) Hosts() []string", "output missing Hosts getter")
 	require.Contains(t, outputStr, "func (serviceConfig) Ports() []int64", "output missing Ports getter")
 	require.Contains(t, outputStr, "// Array overrides not supported via env vars", "output missing array limitation comment")
@@ -266,7 +266,7 @@ db = 0
 
 	outputStr := string(output)
 
-	// Check that Redis methods are only generated once (now unexported struct)
+	// Check that Redis methods are only generated once
 	addrCount := strings.Count(outputStr, "func (cacheredisConfig) Addr() string")
 	require.Equal(t, 1, addrCount, "Addr method should be generated exactly once")
 
@@ -331,7 +331,7 @@ tls_key = "file:files/small.txt"
 
 	outputStr := string(output)
 
-	// Check file loading logic exists (now unexported struct)
+	// Check file loading logic exists
 	require.Contains(t, outputStr, "func (serverConfig) TlsCert() []byte", "output missing TlsCert getter")
 	require.Contains(t, outputStr, `os.Getenv("CONFIG_SERVER_TLS_CERT")`, "output missing file path env var check")
 	require.Contains(t, outputStr, "os.ReadFile(path)", "output missing file read")
