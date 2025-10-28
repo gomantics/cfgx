@@ -86,6 +86,10 @@ cfgx generate --in worker.toml --out config/worker.go
 
 ## CLI Reference
 
+### `cfgx generate`
+
+Generate type-safe Go code from TOML configuration.
+
 ```
 cfgx generate [flags]
 
@@ -98,6 +102,44 @@ Flags:
       --max-file-size      Maximum file size for file: references (default "1MB")
                            Supports: KB, MB, GB (e.g., "5MB", "1GB", "512KB")
 ```
+
+### `cfgx watch`
+
+Watch TOML file and auto-regenerate on changes. Perfect for development workflows.
+
+```
+cfgx watch [flags]
+
+Flags:
+  -i, --in string          Input TOML file (default "config.toml")
+  -o, --out string         Output Go file (required)
+  -p, --pkg string         Package name (inferred from output path)
+      --mode string        Generation mode: 'static' or 'getter' (default "static")
+      --no-env             Disable environment variable overrides (static mode only)
+      --max-file-size      Maximum file size for file: references (default "1MB")
+      --debounce int       Debounce delay in milliseconds (default 100)
+```
+
+**Example:**
+
+```bash
+# Start watching
+cfgx watch --in config.toml --out config/config.go
+
+# Watch with getter mode
+cfgx watch --in config.toml --out config/config.go --mode getter
+
+# Adjust debounce for slower editors
+cfgx watch --in config.toml --out config.go --debounce 200
+```
+
+The watch command:
+
+- Generates code immediately on start
+- Watches for file changes and regenerates automatically
+- Continues watching even if generation fails
+- Handles editor save patterns (file remove/recreate)
+- Gracefully exits on Ctrl+C
 
 ## Modes
 
