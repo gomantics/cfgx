@@ -382,11 +382,11 @@ func (g *Generator) generateStructsAndGetters(buf *bytes.Buffer, data map[string
 	allStructs := make(map[string]map[string]any)
 	for _, key := range keys {
 		if m, ok := data[key].(map[string]any); ok {
-			structName := sx.PascalCase(key) + "Config"
+			structName := sx.CamelCase(key) + "Config"
 			g.collectNestedStructsForGetters(allStructs, structName, m)
 		} else if arr, ok := data[key].([]map[string]any); ok {
 			if len(arr) > 0 {
-				structName := sx.PascalCase(key) + "Item"
+				structName := sx.CamelCase(key) + "Item"
 				g.collectNestedStructsForGetters(allStructs, structName, arr[0])
 			}
 		}
@@ -420,10 +420,10 @@ func (g *Generator) generateStructsAndGetters(buf *bytes.Buffer, data map[string
 
 		switch value.(type) {
 		case map[string]any:
-			structName := sx.PascalCase(key) + "Config"
+			structName := sx.CamelCase(key) + "Config"
 			fmt.Fprintf(buf, "\t%s %s\n", varName, structName)
 		case []map[string]any:
-			structName := sx.PascalCase(key) + "Item"
+			structName := sx.CamelCase(key) + "Item"
 			fmt.Fprintf(buf, "\t%s []%s\n", varName, structName)
 		case []any:
 			goType := g.toGoType(value)
@@ -449,18 +449,18 @@ func (g *Generator) collectNestedStructsForGetters(structs map[string]map[string
 	for key, val := range data {
 		switch v := val.(type) {
 		case map[string]any:
-			nestedName := stripSuffix(name) + sx.PascalCase(key) + "Config"
+			nestedName := stripSuffix(name) + sx.CamelCase(key) + "Config"
 			g.collectNestedStructsForGetters(structs, nestedName, v)
 		case []any:
 			if len(v) > 0 {
 				if m, ok := v[0].(map[string]any); ok {
-					nestedName := stripSuffix(name) + sx.PascalCase(key) + "Item"
+					nestedName := stripSuffix(name) + sx.CamelCase(key) + "Item"
 					g.collectNestedStructsForGetters(structs, nestedName, m)
 				}
 			}
 		case []map[string]any:
 			if len(v) > 0 {
-				nestedName := stripSuffix(name) + sx.PascalCase(key) + "Item"
+				nestedName := stripSuffix(name) + sx.CamelCase(key) + "Item"
 				g.collectNestedStructsForGetters(structs, nestedName, v[0])
 			}
 		}
@@ -495,7 +495,7 @@ func (g *Generator) generateGetterMethods(buf *bytes.Buffer, structName string, 
 
 		// Handle nested structs - they need their own getter methods
 		if nestedMap, ok := value.(map[string]any); ok {
-			nestedStructName := stripSuffix(structName) + sx.PascalCase(fieldName) + "Config"
+			nestedStructName := stripSuffix(structName) + sx.CamelCase(fieldName) + "Config"
 			// Generate method that returns nested struct
 			fmt.Fprintf(buf, "func (%s) %s() %s {\n", structName, goFieldName, nestedStructName)
 			fmt.Fprintf(buf, "\treturn %s{}\n", nestedStructName)
@@ -510,7 +510,7 @@ func (g *Generator) generateGetterMethods(buf *bytes.Buffer, structName string, 
 		// Handle arrays of structs - for now, return empty slice (limitation)
 		if arr, ok := value.([]any); ok && len(arr) > 0 {
 			if _, isMap := arr[0].(map[string]any); isMap {
-				nestedStructName := stripSuffix(structName) + sx.PascalCase(fieldName) + "Item"
+				nestedStructName := stripSuffix(structName) + sx.CamelCase(fieldName) + "Item"
 				goType := "[]" + nestedStructName
 				// For arrays of structs, return default empty value
 				fmt.Fprintf(buf, "func (%s) %s() %s {\n", structName, goFieldName, goType)
@@ -522,7 +522,7 @@ func (g *Generator) generateGetterMethods(buf *bytes.Buffer, structName string, 
 		}
 
 		if arr, ok := value.([]map[string]any); ok && len(arr) > 0 {
-			nestedStructName := stripSuffix(structName) + sx.PascalCase(fieldName) + "Item"
+			nestedStructName := stripSuffix(structName) + sx.CamelCase(fieldName) + "Item"
 			goType := "[]" + nestedStructName
 			fmt.Fprintf(buf, "func (%s) %s() %s {\n", structName, goFieldName, goType)
 			fmt.Fprintf(buf, "\t// Arrays of structs cannot be overridden via env vars\n")
