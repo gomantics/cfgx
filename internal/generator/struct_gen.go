@@ -577,60 +577,7 @@ func (g *Generator) generateGetterMethods(buf *bytes.Buffer, structName string, 
 // generateGetterMethod generates a single getter method with env var override.
 func (g *Generator) generateGetterMethod(buf *bytes.Buffer, structName, fieldName, goType, envVarName string, defaultValue any) error {
 	fmt.Fprintf(buf, "func (%s) %s() %s {\n", structName, fieldName, goType)
-
-	// Special handling for []byte (file references) - check for file path in env var
-	if goType == "[]byte" {
-		buf.WriteString("\t// Check for file path to load\n")
-		fmt.Fprintf(buf, "\tif path := os.Getenv(%q); path != \"\" {\n", envVarName)
-		buf.WriteString("\t\tif data, err := os.ReadFile(path); err == nil {\n")
-		buf.WriteString("\t\t\treturn data\n")
-		buf.WriteString("\t\t}\n")
-		buf.WriteString("\t}\n")
-		// Write default value
-		buf.WriteString("\treturn ")
-		g.writeValue(buf, defaultValue)
-		buf.WriteString("\n")
-		buf.WriteString("}\n\n")
-		return nil
-	}
-
-	// For other types, check env var with type conversion
-	fmt.Fprintf(buf, "\tif v := os.Getenv(%q); v != \"\" {\n", envVarName)
-
-	// Generate type-specific parsing
-	switch goType {
-	case "string":
-		buf.WriteString("\t\treturn v\n")
-	case "int64":
-		buf.WriteString("\t\tif i, err := strconv.ParseInt(v, 10, 64); err == nil {\n")
-		buf.WriteString("\t\t\treturn i\n")
-		buf.WriteString("\t\t}\n")
-	case "float64":
-		buf.WriteString("\t\tif f, err := strconv.ParseFloat(v, 64); err == nil {\n")
-		buf.WriteString("\t\t\treturn f\n")
-		buf.WriteString("\t\t}\n")
-	case "bool":
-		buf.WriteString("\t\tif b, err := strconv.ParseBool(v); err == nil {\n")
-		buf.WriteString("\t\t\treturn b\n")
-		buf.WriteString("\t\t}\n")
-	case "time.Duration":
-		buf.WriteString("\t\tif d, err := time.ParseDuration(v); err == nil {\n")
-		buf.WriteString("\t\t\treturn d\n")
-		buf.WriteString("\t\t}\n")
-	default:
-		// Handle arrays of primitives (for now, don't support env override)
-		if strings.HasPrefix(goType, "[]") {
-			buf.WriteString("\t\t// Array overrides not supported via env vars\n")
-		}
-	}
-
-	buf.WriteString("\t}\n")
-
-	// Write default value
-	buf.WriteString("\treturn ")
-	g.writeValue(buf, defaultValue)
-	buf.WriteString("\n")
-
+	g.writeGetterBody(buf, goType, envVarName, defaultValue)
 	buf.WriteString("}\n\n")
 	return nil
 }
@@ -642,7 +589,14 @@ func (g *Generator) generateTopLevelGetter(buf *bytes.Buffer, varName string, de
 	envVarName := "CONFIG_" + strings.ToUpper(varName)
 
 	fmt.Fprintf(buf, "func %s() %s {\n", funcName, goType)
+	g.writeGetterBody(buf, goType, envVarName, defaultValue)
+	buf.WriteString("}\n\n")
+	return nil
+}
 
+// writeGetterBody generates the common body logic for getter functions/methods.
+// This handles env var checking, type conversion, and default value fallback.
+func (g *Generator) writeGetterBody(buf *bytes.Buffer, goType, envVarName string, defaultValue any) {
 	// Special handling for []byte (file references) - check for file path in env var
 	if goType == "[]byte" {
 		buf.WriteString("\t// Check for file path to load\n")
@@ -655,8 +609,7 @@ func (g *Generator) generateTopLevelGetter(buf *bytes.Buffer, varName string, de
 		buf.WriteString("\treturn ")
 		g.writeValue(buf, defaultValue)
 		buf.WriteString("\n")
-		buf.WriteString("}\n\n")
-		return nil
+		return
 	}
 
 	// For other types, check env var with type conversion
@@ -695,9 +648,6 @@ func (g *Generator) generateTopLevelGetter(buf *bytes.Buffer, varName string, de
 	buf.WriteString("\treturn ")
 	g.writeValue(buf, defaultValue)
 	buf.WriteString("\n")
-
-	buf.WriteString("}\n\n")
-	return nil
 }
 
 // envVarName generates an environment variable name from a struct name and field name.
