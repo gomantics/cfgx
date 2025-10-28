@@ -130,7 +130,7 @@ cfgx watch --in config.toml --out config/config.go
 # Watch with getter mode
 cfgx watch --in config.toml --out config/config.go --mode getter
 
-# Adjust debounce for slower editors
+# Increase debounce delay to reduce rapid regenerations
 cfgx watch --in config.toml --out config.go --debounce 200
 ```
 
