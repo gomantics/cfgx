@@ -100,14 +100,22 @@ func GenerateFromFile(opts *GenerateOptions) error {
 		return fmt.Errorf("failed to read input file %s: %w", opts.InputFile, err)
 	}
 
-	// Parse TOML to apply environment variable overrides if enabled
+	// Set default mode if not specified
+	mode := opts.Mode
+	if mode == "" {
+		mode = "static"
+	}
+
+	// Parse TOML to apply environment variable overrides if enabled.
+	// In getter mode, env vars are resolved at runtime via os.Getenv() calls
+	// in the generated code, so applying them at generation time would
+	// incorrectly bake runtime values (e.g. secrets) into the source as defaults.
 	var configData map[string]any
 	if err := toml.Unmarshal(data, &configData); err != nil {
 		return fmt.Errorf("failed to parse TOML: %w", err)
 	}
 
-	// Apply environment variable overrides
-	if opts.EnableEnv {
+	if opts.EnableEnv && mode != "getter" {
 		if err := envoverride.Apply(configData); err != nil {
 			return fmt.Errorf("failed to apply environment overrides: %w", err)
 		}
@@ -135,12 +143,6 @@ func GenerateFromFile(opts *GenerateOptions) error {
 	maxFileSize := opts.MaxFileSize
 	if maxFileSize == 0 {
 		maxFileSize = DefaultMaxFileSize
-	}
-
-	// Set default mode if not specified
-	mode := opts.Mode
-	if mode == "" {
-		mode = "static"
 	}
 
 	// Generate code
