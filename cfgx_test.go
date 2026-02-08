@@ -72,6 +72,53 @@ max_conns = 10
 	require.NotContains(t, outputStr, `":8080"`, "original server.addr should have been overridden")
 }
 
+func TestGenerateFromFile_GetterModeIgnoresEnvOverrides(t *testing.T) {
+	tmpDir := t.TempDir()
+	inputFile := filepath.Join(tmpDir, "config.toml")
+	outputFile := filepath.Join(tmpDir, "config.go")
+
+	tomlData := []byte(`
+[server]
+addr = ":8080"
+
+[secrets]
+api_key = "set-from-env"
+`)
+
+	err := os.WriteFile(inputFile, tomlData, 0644)
+	require.NoError(t, err)
+
+	// Set env var that would override the TOML value at generation time
+	os.Setenv("CONFIG_SECRETS_API_KEY", "sk-real-secret-key-12345")
+	defer os.Unsetenv("CONFIG_SECRETS_API_KEY")
+
+	opts := &GenerateOptions{
+		InputFile:   inputFile,
+		OutputFile:  outputFile,
+		PackageName: "config",
+		EnableEnv:   true,
+		Mode:        "getter",
+	}
+
+	err = GenerateFromFile(opts)
+	require.NoError(t, err, "GenerateFromFile() should not error")
+
+	output, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+
+	// The generated code should use the TOML default, NOT the env var value
+	require.Contains(t, outputStr, `"set-from-env"`,
+		"getter mode should use TOML default, not env var value")
+	require.NotContains(t, outputStr, "sk-real-secret-key-12345",
+		"getter mode must not bake env var values into generated code")
+
+	// It should still have the os.Getenv call for runtime override
+	require.Contains(t, outputStr, `os.Getenv("CONFIG_SECRETS_API_KEY")`,
+		"getter mode should still generate runtime env var lookups")
+}
+
 func TestGenerateFromFile(t *testing.T) {
 	// Create a temporary TOML file
 	tmpDir := t.TempDir()
